@@ -53,6 +53,10 @@ def test_bound_ui_server_serves_app_and_injects_library_scope(tmp_path):
     try:
         html = urllib.request.urlopen(f"{base}/").read().decode()
         assert "<title>Library</title>" in html
+        assert "/assets/libraryos-icon-64.png" in html
+        icon = urllib.request.urlopen(f"{base}/assets/libraryos-icon-64.png")
+        assert icon.headers["Content-Type"] == "image/png"
+        assert len(icon.read()) > 1_000
         response = urllib.request.urlopen(f"{base}/")
         cookie = response.headers["Set-Cookie"].split(";", 1)[0]
         assert token not in html

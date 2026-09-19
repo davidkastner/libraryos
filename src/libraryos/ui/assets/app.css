@@ -36,8 +36,7 @@ button { color: inherit; }
 .traffic-lights .minimize { background: #febc2e; }
 .traffic-lights .zoom { background: #28c840; }
 .brand { display: flex; align-items: center; gap: 11px; padding: 0 8px 25px; }
-.brand-mark { width: 36px; height: 36px; display: grid; place-items: center; border-radius: 10px; color: white; background: linear-gradient(145deg, #2783f4, #0c61cf); box-shadow: 0 5px 14px rgba(21,113,232,.24); }
-.brand-mark svg { width: 21px; fill: none; stroke: currentColor; stroke-width: 1.6; }
+.brand-mark { width: 40px; height: 40px; object-fit: cover; border: 1px solid rgba(30,30,27,.07); border-radius: 11px; background: white; box-shadow: 0 5px 16px rgba(44,55,84,.13); }
 .brand strong { display: block; font-size: 15px; letter-spacing: -.01em; }
 .brand span, .sidebar-footer span { display: block; margin-top: 2px; color: var(--muted); font-size: 11px; }
 .nav-label { margin: 15px 10px 7px; color: var(--faint); font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .055em; }
