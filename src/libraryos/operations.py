@@ -52,7 +52,7 @@ from .migrations import (
 )
 from .preparation import prepare_source
 from .privacy import scan_privacy
-from .reading import resolve_read
+from .reading import open_read, resolve_read
 from .records import (
     archive_collection,
     archive_collection_preview,
@@ -77,6 +77,7 @@ from .works import (
     get_work,
     import_source,
     list_works,
+    query_works,
     register_derivative,
     register_source_candidate,
 )
@@ -138,6 +139,7 @@ OPERATIONS: dict[str, OperationDefinition] = {
     "privacy.scan": OperationDefinition(scan_privacy, False, False, "library.maintain"),
     "work.create": OperationDefinition(create_work, True, False, "library.maintain"),
     "work.list": OperationDefinition(list_works, False, False, "library.read"),
+    "work.query": OperationDefinition(query_works, False, False, "library.read"),
     "work.show": OperationDefinition(get_work, False, False, "library.read"),
     "bibliography.import": OperationDefinition(
         import_bibliography, True, False, "library.maintain"
@@ -165,6 +167,7 @@ OPERATIONS: dict[str, OperationDefinition] = {
     "search": OperationDefinition(search_catalog, False, False, "library.read"),
     "search.prepared": OperationDefinition(search_prepared, False, False, "library.read"),
     "read.resolve": OperationDefinition(resolve_read, False, False, "library.read"),
+    "read.open": OperationDefinition(open_read, False, False, "library.read"),
     "collection.create": OperationDefinition(
         create_collection, True, False, "library.maintain"
     ),

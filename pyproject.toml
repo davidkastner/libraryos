@@ -34,7 +34,7 @@ Issues = "https://github.com/davidkastner/libraryos/issues"
 where = ["src"]
 
 [tool.setuptools.package-data]
-libraryos = ["schemas/*.json"]
+libraryos = ["schemas/*.json", "ui/*.html", "ui/assets/*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

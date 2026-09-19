@@ -2,6 +2,10 @@
 
 from __future__ import annotations
 
+import os
+import subprocess
+import sys
+import webbrowser
 from pathlib import Path
 from typing import Any
 
@@ -108,6 +112,75 @@ def resolve_read(
         "next_actions": ["discover", "import"],
         "preference": preference,
         "opened": False,
+        "review_created": False,
+        "scientific_inspection": "not_performed",
+    }
+
+
+def open_read(
+    library: str | Path,
+    work_id: str,
+    *,
+    application: str = "default",
+) -> dict[str, Any]:
+    """Resolve and open a local PDF without recording scientific review."""
+
+    if application not in {"default", "preview"}:
+        raise StorageError(
+            "Unknown reading application",
+            code="read_application_invalid",
+            path=application,
+        )
+    resolved = resolve_read(library, work_id, preference=["local_pdf"])
+    if resolved["representation"] != "local_pdf":
+        raise StorageError(
+            "No local PDF is available for this work",
+            code="local_pdf_unavailable",
+            path=work_id,
+        )
+    path = resolved["path"]
+    try:
+        if sys.platform == "darwin":
+            command = ["open"]
+            if application == "preview":
+                command.extend(["-a", "Preview"])
+            subprocess.Popen(  # noqa: S603
+                [*command, "--", path],
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                start_new_session=True,
+            )
+            opened_with = "Preview" if application == "preview" else "system default"
+        elif sys.platform == "win32":
+            if application == "preview":
+                raise StorageError(
+                    "Preview is available only on macOS",
+                    code="read_application_unavailable",
+                )
+            os.startfile(path)  # type: ignore[attr-defined]  # noqa: S606
+            opened_with = "system default"
+        else:
+            if application == "preview":
+                raise StorageError(
+                    "Preview is available only on macOS",
+                    code="read_application_unavailable",
+                )
+            if not webbrowser.open(Path(path).resolve().as_uri()):
+                raise OSError("The system did not accept the file")
+            opened_with = "system default"
+    except OSError as error:
+        raise StorageError(
+            "The PDF could not be opened",
+            code="read_open_failed",
+            path=work_id,
+        ) from error
+    return {
+        "work_id": work_id,
+        "artifact_id": resolved["artifact_id"],
+        "representation": "local_pdf",
+        "opened": True,
+        "opened_with": opened_with,
         "review_created": False,
         "scientific_inspection": "not_performed",
     }

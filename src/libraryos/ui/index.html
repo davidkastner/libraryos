@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="color-scheme" content="light">
+    <title>Library</title>
+    <link rel="icon" type="image/png" href="/assets/libraryos-icon-64.png">
+    <link rel="apple-touch-icon" href="/assets/libraryos-icon-512.png">
+    <link rel="stylesheet" href="/assets/app.css">
+    <script src="/assets/app.js" defer></script>
+  </head>
+  <body>
+    <div class="app">
+      <aside class="sidebar">
+        <div class="identity">
+          <img src="/assets/libraryos-icon-64.png" alt="">
+          <span>Library</span>
+        </div>
+
+        <nav aria-label="Library">
+          <p class="nav-label">Library</p>
+          <button class="nav-item active" type="button" data-filter="all">
+            <span class="nav-symbol">
+              <svg viewBox="0 0 24 24"><path d="M4.5 5.5h6v13h-6zM13.5 5.5h6v13h-6z"/></svg>
+            </span>
+            <span>All Papers</span>
+            <span class="count" id="nav-count">—</span>
+          </button>
+          <button class="nav-item" type="button" data-filter="local_pdf">
+            <span class="nav-symbol">
+              <svg viewBox="0 0 24 24"><path d="M7 3.5h7l4 4v13H7zM14 3.5v4h4"/></svg>
+            </span>
+            <span>Downloaded</span>
+          </button>
+          <button class="nav-item" type="button" data-recent>
+            <span class="nav-symbol">
+              <svg viewBox="0 0 24 24"><path d="M12 7v5l3 1.8M5.1 7.2A8 8 0 1 1 4 12"/><path d="M3.6 4.9v3h3"/></svg>
+            </span>
+            <span>Recent</span>
+          </button>
+
+          <p class="nav-label">Attention</p>
+          <button class="nav-item" type="button" data-filter="needs_source">
+            <span class="nav-symbol warning">
+              <svg viewBox="0 0 24 24"><path d="M12 8v5M12 17h.01M4.2 20h15.6L12 4z"/></svg>
+            </span>
+            <span>Needs Source</span>
+          </button>
+        </nav>
+
+        <div class="sidebar-footer">
+          <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M6.25 7V5.5A3.75 3.75 0 0 1 10 1.75a3.75 3.75 0 0 1 3.75 3.75V7M4.5 7h11v10.25h-11z"/></svg>
+          <div><strong id="library-subtitle">Local Library</strong><span>Private on this Mac</span></div>
+        </div>
+      </aside>
+
+      <main>
+        <header class="content-header">
+          <div class="title-row">
+            <div>
+              <h1 id="page-title">All Papers</h1>
+              <p id="result-count">Loading papers…</p>
+            </div>
+            <label class="sort-control">
+              <span class="sr-only">Sort papers</span>
+              <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M5 5h10M7 10h6M9 15h2"/></svg>
+              <select id="sort">
+                <option value="recent">Recently added</option>
+                <option value="title">Title</option>
+                <option value="year_desc">Publication year</option>
+              </select>
+            </label>
+          </div>
+          <label class="search">
+            <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="8.25" cy="8.25" r="4.75"/><path d="m11.8 11.8 4.2 4.2"/></svg>
+            <span class="sr-only">Search papers</span>
+            <input id="search" type="search" placeholder="Search by title, author, journal, or DOI" autocomplete="off">
+            <kbd>⌘K</kbd>
+          </label>
+        </header>
+
+        <section id="papers" class="paper-list" aria-label="Papers"></section>
+
+        <div id="empty" class="empty" hidden>
+          <span class="empty-symbol">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m15.5 15.5 4 4"/></svg>
+          </span>
+          <h2>No papers found</h2>
+          <p>Try another title, author, journal, DOI, or source.</p>
+          <button id="clear-search" type="button">Clear Search</button>
+        </div>
+        <p class="library-note">PDF availability is shown independently of scientific assessment.</p>
+      </main>
+    </div>
+
+    <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+    <template id="paper-template">
+      <article class="paper" tabindex="0">
+        <div class="document-symbol" aria-hidden="true">
+          <svg viewBox="0 0 24 24"><path d="M6 2.75h8l4 4v14.5H6zM14 2.75v4h4"/><path d="M9 12h6M9 15.5h6"/></svg>
+        </div>
+        <div class="paper-copy">
+          <h2></h2>
+          <p class="authors"></p>
+          <p class="metadata">
+            <span class="venue"></span>
+            <span class="year"></span>
+            <span class="identifier"></span>
+          </p>
+        </div>
+        <div class="availability">
+          <span class="source-state"></span>
+        </div>
+        <button class="open-button" type="button" aria-label="Open paper">
+          <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m7.5 4.5 5.5 5.5-5.5 5.5"/></svg>
+        </button>
+      </article>
+    </template>
+  </body>
+</html>

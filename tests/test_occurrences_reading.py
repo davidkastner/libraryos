@@ -1,5 +1,6 @@
 import hashlib
 import uuid
+from unittest.mock import patch
 
 import pytest
 
@@ -15,6 +16,7 @@ from libraryos import (
     resolve_read,
     write_occurrence,
 )
+from libraryos.reading import open_read
 
 
 def test_occurrence_import_is_structural_and_immutable(tmp_path):
@@ -136,3 +138,42 @@ def test_read_resolver_returns_candidate_or_recovery(tmp_path):
     assert resolved["review_created"] is False
     assert candidate["candidate"]["url"] == resolved["url"]
     assert get_work(root, work["id"])["sources"] == []
+
+
+def test_open_read_uses_preview_without_recording_review(tmp_path):
+    root = tmp_path / "library"
+    initialize_library(root)
+    work = create_work(root, work_type="article", title="Open me")
+    pdf_path = tmp_path / "article.pdf"
+    pdf_path.write_bytes(b"%PDF-1.7\n%%EOF\n")
+    import_source(
+        root,
+        work["id"],
+        pdf_path,
+        role="full_text",
+        media_type="application/pdf",
+    )
+
+    with patch("libraryos.reading.sys.platform", "darwin"), patch(
+        "libraryos.reading.subprocess.Popen"
+    ) as popen:
+        result = open_read(root, work["id"], application="preview")
+
+    command = popen.call_args.args[0]
+    assert command[:3] == ["open", "-a", "Preview"]
+    assert command[-2] == "--"
+    assert result["opened"] is True
+    assert result["opened_with"] == "Preview"
+    assert result["review_created"] is False
+    assert result["scientific_inspection"] == "not_performed"
+    assert list_records(root, "reviews") == []
+
+
+def test_open_read_requires_local_pdf(tmp_path):
+    root = tmp_path / "library"
+    initialize_library(root)
+    work = create_work(root, work_type="article", title="No local PDF")
+
+    with pytest.raises(StorageError) as caught:
+        open_read(root, work["id"], application="preview")
+    assert caught.value.code == "local_pdf_unavailable"

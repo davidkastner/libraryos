@@ -30,8 +30,10 @@ security model, migration strategy, delivery phases, and v1 acceptance
 criteria. The [Stage 1 hardening roadmap](docs/stage-1-roadmap.md) turns those
 criteria into an auditable checklist, and the
 [Stage 1 acceptance report](docs/stage-1-acceptance-report.md) records the
-verification evidence and remaining limitations. Work on the graphical
-**Library** application begins only after the user accepts that gate.
+verification evidence and remaining limitations. Stage 1 was accepted on
+2026-09-19. The [Stage 2 UI plan](docs/stage-2-ui-plan.md) now specifies the
+graphical **Library** application and is the design gate before UI
+implementation.
 
 ## Core idea
 
@@ -122,6 +124,26 @@ libraryos serve
 
 The service binds to `127.0.0.1`, prints a new session token, requires that
 token for operations, and exposes its contract at `/openapi.json`.
+
+Launch the graphical **Library** interface for a local library with:
+
+```bash
+libraryos serve --library /path/to/private-library
+```
+
+The browser interface lists and searches papers, filters by local PDF
+availability, and opens authoritative local PDFs in macOS Preview. Opening a
+paper does not create a review or claim that scientific inspection occurred.
+
+For a development checkout on macOS, install a local `Library.app` wrapper with:
+
+```bash
+packaging/macos/install-development-app.sh
+```
+
+This unsigned development wrapper runs the current checkout rather than copying
+its Python environment into the application. A distributable, signed,
+self-contained macOS build remains a later packaging stage.
 
 ## Data safety
 
