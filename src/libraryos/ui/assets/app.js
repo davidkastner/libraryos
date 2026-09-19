@@ -1,12 +1,17 @@
-const state = { query: "", availability: "all", sort: "recent" };
+const PAGE_SIZE = 100;
+const state = { query: "", availability: "all", sort: "recent", items: [], total: 0 };
 const papers = document.querySelector("#papers");
 const template = document.querySelector("#paper-template");
 const search = document.querySelector("#search");
 const resultCount = document.querySelector("#result-count");
+const listFooter = document.querySelector("#list-footer");
+const visibleCount = document.querySelector("#visible-count");
+const showMore = document.querySelector("#show-more");
 const empty = document.querySelector("#empty");
 const toast = document.querySelector("#toast");
 let searchTimer;
 let selected = null;
+let requestNumber = 0;
 
 async function operation(name, arguments_) {
   const response = await fetch(`/v1/operations/${name}`, {
@@ -59,9 +64,11 @@ function selectPaper(article, item) {
   selected = { article, item };
 }
 
-function render(items) {
-  papers.replaceChildren();
-  selected = null;
+function render(items, append = false) {
+  if (!append) {
+    papers.replaceChildren();
+    selected = null;
+  }
   for (const item of items) {
     const fragment = template.content.cloneNode(true);
     const article = fragment.querySelector(".paper");
@@ -96,32 +103,72 @@ function render(items) {
   }
 }
 
-async function loadPapers() {
+function updateCounts() {
+  const shown = state.items.length;
+  const noun = state.total === 1 ? "paper" : "papers";
+  document.querySelector("#nav-count").textContent = state.total.toLocaleString();
+  resultCount.textContent = shown < state.total
+    ? `Showing ${shown.toLocaleString()} of ${state.total.toLocaleString()} ${noun}`
+    : `${state.total.toLocaleString()} ${noun}`;
+  visibleCount.textContent = `${shown.toLocaleString()} of ${state.total.toLocaleString()} shown`;
+  listFooter.hidden = shown === 0 || shown >= state.total;
+}
+
+async function loadPapers({ append = false } = {}) {
+  const currentRequest = ++requestNumber;
+  const offset = append ? state.items.length : 0;
   papers.hidden = false;
   empty.hidden = true;
-  papers.innerHTML = '<div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div>';
+  if (!append) {
+    listFooter.hidden = true;
+    papers.innerHTML = '<div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div>';
+  } else {
+    showMore.disabled = true;
+    showMore.textContent = "Loading…";
+  }
   try {
     const result = await operation("work.query", {
       query: state.query,
       availability: state.availability,
       sort: state.sort,
-      limit: 100,
-      offset: 0,
+      limit: PAGE_SIZE,
+      offset,
     });
-    document.querySelector("#nav-count").textContent = result.total.toLocaleString();
-    resultCount.textContent = `${result.total.toLocaleString()} ${result.total === 1 ? "paper" : "papers"}`;
+    if (currentRequest !== requestNumber) return;
+    state.total = result.total;
     if (result.items.length) {
-      render(result.items);
+      state.items = append ? [...state.items, ...result.items] : result.items;
+      render(result.items, append);
+      updateCounts();
+    } else if (append) {
+      updateCounts();
     } else {
+      state.items = [];
       papers.hidden = true;
+      listFooter.hidden = true;
       empty.hidden = false;
+      updateCounts();
     }
   } catch (error) {
+    if (currentRequest !== requestNumber) return;
+    if (append) {
+      showToast(error.message);
+      listFooter.hidden = false;
+      return;
+    }
+    state.items = [];
+    state.total = 0;
     papers.hidden = true;
+    listFooter.hidden = true;
     empty.hidden = false;
     empty.querySelector("h2").textContent = "Library unavailable";
     empty.querySelector("p").textContent = error.message;
     resultCount.textContent = "Unable to load papers";
+  } finally {
+    if (currentRequest === requestNumber) {
+      showMore.disabled = false;
+      showMore.textContent = "Show 100 More";
+    }
   }
 }
 
@@ -169,6 +216,7 @@ document.querySelector("#clear-search").addEventListener("click", () => {
   document.querySelector("#page-title").textContent = "All Papers";
   loadPapers();
 });
+showMore.addEventListener("click", () => loadPapers({ append: true }));
 document.addEventListener("keydown", event => {
   if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
     event.preventDefault();
