@@ -100,6 +100,9 @@ def create_work(
                 os.fsync(directory)
             finally:
                 os.close(directory)
+            from .catalog import index_work_if_present
+
+            index_work_if_present(root, manifest)
         finally:
             if staging.exists():
                 shutil.rmtree(staging)
@@ -221,6 +224,7 @@ def query_works(
     sort: str = "recent",
     work_type: str | None = None,
     availability: str = "all",
+    collection_id: str | None = None,
 ) -> dict[str, Any]:
     """Return bounded work summaries for interactive clients."""
 
@@ -237,88 +241,98 @@ def query_works(
             path=availability,
         )
 
+    import json
+    import sqlite3
+
+    from .catalog import ensure_catalog, index_collection_if_present
+    from .collections import get_collection
+
+    root, catalog = ensure_catalog(library)
+    if collection_id is not None:
+        # Reading the authoritative collection is cheap and keeps externally
+        # managed collection files synchronized without scanning work manifests.
+        collection = get_collection(root, collection_id)["collection"]
+        index_collection_if_present(root, collection)
+
+    joins = ""
+    where: list[str] = []
+    parameters: list[Any] = []
+    if collection_id is not None:
+        joins = "JOIN collection_members cm ON cm.work_id = w.id"
+        where.append("cm.collection_id = ?")
+        parameters.append(collection_id)
     normalized_query = query.casefold().strip()
-    rows: list[dict[str, Any]] = []
-    for manifest in list_works(library):
-        work = manifest["work"]
-        authors = [_author_label(author) for author in work.get("authors", [])]
-        identifiers = [
-            {
-                "scheme": item["scheme"],
-                "value": item.get("normalized", item["value"]),
-            }
-            for item in work["identifiers"]
-        ]
-        pdfs = [
-            source
-            for source in manifest["sources"]
-            if source["media_type"] == "application/pdf"
-        ]
-        has_local_source = bool(manifest["sources"])
-        searchable = " ".join(
-            [
-                str(work.get("title") or ""),
-                *authors,
-                str(work.get("container_title") or ""),
-                str(work.get("issued") or ""),
-                work["type"],
-                *(f"{item['scheme']} {item['value']}" for item in identifiers),
-            ]
-        ).casefold()
-        if normalized_query and normalized_query not in searchable:
-            continue
-        if work_type is not None and work["type"] != work_type:
-            continue
-        if availability == "local_pdf" and not pdfs:
-            continue
-        if availability == "needs_source" and has_local_source:
-            continue
-        warnings = [
-            *manifest.get("warnings", []),
-            *(
-                warning
-                for artifact in [*manifest["sources"], *manifest["derivatives"]]
-                for warning in artifact.get("warnings", [])
-            ),
-        ]
-        rows.append(
-            {
-                "id": manifest["id"],
-                "type": work["type"],
-                "title": work.get("title"),
-                "authors": authors,
-                "container_title": work.get("container_title"),
-                "issued": work.get("issued"),
-                "identifiers": identifiers,
-                "created_at": manifest["created_at"],
-                "updated_at": manifest["updated_at"],
-                "source_count": len(manifest["sources"]),
-                "pdf_count": len(pdfs),
-                "derivative_count": len(manifest["derivatives"]),
-                "warning_count": len(warnings),
-                "scientific_support": "not_assessed",
-            }
-        )
-
-    if sort == "title":
-        rows.sort(key=lambda row: ((row["title"] or "").casefold(), row["id"]))
-    elif sort == "year_desc":
-        rows.sort(
-            key=lambda row: (
-                str(row["issued"] or ""),
-                (row["title"] or "").casefold(),
-                row["id"],
-            ),
-            reverse=True,
-        )
-    else:
-        rows.sort(key=lambda row: (row["created_at"], row["id"]), reverse=True)
-
-    types: dict[str, int] = {}
-    for row in rows:
-        types[row["type"]] = types.get(row["type"], 0) + 1
-    total = len(rows)
-    page = rows[offset : offset + limit]
+    if normalized_query:
+        where.append("instr(w.search_text, ?) > 0")
+        parameters.append(normalized_query)
+    if work_type is not None:
+        where.append("w.type = ?")
+        parameters.append(work_type)
+    if availability == "local_pdf":
+        where.append("w.pdf_count > 0")
+    elif availability == "needs_source":
+        where.append("w.source_count = 0")
+    predicate = f"WHERE {' AND '.join(where)}" if where else ""
+    ordering = {
+        "title": "lower(coalesce(w.title, '')) ASC, w.id ASC",
+        "year_desc": "w.issued DESC, lower(coalesce(w.title, '')) DESC, w.id DESC",
+        "recent": "w.created_at DESC, w.id DESC",
+    }[sort]
+    with sqlite3.connect(f"{catalog.resolve().as_uri()}?mode=ro", uri=True) as connection:
+        connection.row_factory = sqlite3.Row
+        total = connection.execute(
+            f"SELECT count(*) FROM works w {joins} {predicate}", parameters
+        ).fetchone()[0]
+        facet_rows = connection.execute(
+            f"SELECT w.type, count(*) AS total FROM works w {joins} "
+            f"{predicate} GROUP BY w.type",
+            parameters,
+        ).fetchall()
+        page_rows = connection.execute(
+            f"""
+            SELECT w.* FROM works w {joins} {predicate}
+            ORDER BY {ordering} LIMIT ? OFFSET ?
+            """,
+            [*parameters, limit, offset],
+        ).fetchall()
+        work_ids = [row["id"] for row in page_rows]
+        identifiers_by_work: dict[str, list[dict[str, str]]] = {
+            work_id: [] for work_id in work_ids
+        }
+        if work_ids:
+            placeholders = ",".join("?" for _ in work_ids)
+            identifier_rows = connection.execute(
+                f"""
+                SELECT work_id, scheme, coalesce(normalized, value) AS value
+                FROM identifiers WHERE work_id IN ({placeholders})
+                ORDER BY rowid
+                """,
+                work_ids,
+            ).fetchall()
+            for identifier in identifier_rows:
+                identifiers_by_work[identifier["work_id"]].append(
+                    {"scheme": identifier["scheme"], "value": identifier["value"]}
+                )
+    page = [
+        {
+            "id": row["id"],
+            "type": row["type"],
+            "title": row["title"],
+            "authors": json.loads(row["authors_json"]),
+            "container_title": row["container_title"],
+            "issued": int(row["issued"]) if str(row["issued"]).isdigit() else row["issued"],
+            "identifiers": identifiers_by_work[row["id"]],
+            "created_at": row["created_at"],
+            "updated_at": row["updated_at"],
+            "source_count": row["source_count"],
+            "pdf_count": row["pdf_count"],
+            "derivative_count": row["derivative_count"],
+            "warning_count": row["warning_count"],
+            "scientific_support": "not_assessed",
+        }
+        for row in page_rows
+    ]
+    types = {row["type"]: row["total"] for row in facet_rows}
     return {
         "items": page,
         "total": total,
@@ -399,6 +413,9 @@ def register_source_candidate(
         }
         validate_record(updated)
         atomic_json(manifest_path, updated)
+        from .catalog import index_work_if_present
+
+        index_work_if_present(root, updated)
     return {"created": True, "candidate": candidate, "work_id": work_id}
 
 
@@ -491,6 +508,9 @@ def import_source(
             finally:
                 os.close(directory)
             atomic_json(manifest_path, updated)
+            from .catalog import index_work_if_present
+
+            index_work_if_present(root, updated)
         except Exception:
             if published:
                 destination.unlink(missing_ok=True)
@@ -612,6 +632,9 @@ def register_derivative(
             os.replace(temporary, destination)
             published = True
             atomic_json(manifest_path, updated)
+            from .catalog import index_work_if_present
+
+            index_work_if_present(root, updated)
         except Exception:
             if published:
                 destination.unlink(missing_ok=True)

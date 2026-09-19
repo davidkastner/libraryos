@@ -77,6 +77,9 @@ def put_collection(library: str | Path, record: dict[str, Any]) -> dict[str, Any
             get_work(root, reference)
     path = resolve_library_path(root, f"collections/{record['id']}.json")
     atomic_json(path, record)
+    from .catalog import index_collection_if_present
+
+    index_collection_if_present(root, record)
     return record
 
 
@@ -103,6 +106,94 @@ def create_collection(
     if description is not None:
         record["description"] = description
     return put_collection(library, record)
+
+
+def set_collection_membership(
+    library: str | Path,
+    collection_id: str,
+    work_id: str,
+    *,
+    included: bool,
+) -> dict[str, Any]:
+    """Add or remove one work while preserving all other collection metadata."""
+
+    root, _ = open_library(library)
+    get_work(root, work_id)
+    collection_result = get_collection(root, collection_id)
+    collection = collection_result["collection"]
+    if collection["status"] != "active":
+        raise StorageError(
+            "Archived collections cannot be changed",
+            code="collection_archived",
+            path=collection_id,
+        )
+    matching_member = None
+    for member in collection["members"]:
+        reference = member["work"]
+        if isinstance(reference, str):
+            matches = reference == work_id
+        else:
+            identifier = reference["identifier"]
+            resolved_work = resolve_identifier(
+                root,
+                identifier["scheme"],
+                identifier["value"],
+                normalized=identifier.get("normalized"),
+            )
+            matches = resolved_work is not None and resolved_work["id"] == work_id
+        if matches:
+            matching_member = member
+            break
+    already_included = matching_member is not None
+    if included == already_included:
+        return {
+            "collection": collection,
+            "location": collection_result["location"],
+            "included": included,
+            "changed": False,
+        }
+
+    if included:
+        orders = [
+            member["order"]
+            for member in collection["members"]
+            if isinstance(member.get("order"), (int, float))
+        ]
+        member: dict[str, Any] = {"work": work_id}
+        if orders:
+            member["order"] = max(orders) + 10
+        updated_members = [*collection["members"], member]
+    else:
+        updated_members = [
+            member for member in collection["members"] if member is not matching_member
+        ]
+    updated = {
+        **collection,
+        "members": updated_members,
+        "updated_at": utc_now(),
+    }
+    if collection_result["location"]["kind"] == "external":
+        written = put_external_collection(
+            root,
+            collection_id,
+            updated,
+            expected_sha256=collection_result["location"]["sha256"],
+        )
+        location = {
+            "kind": "external",
+            "path": collection_result["location"]["path"],
+            "sha256": written["registration"]["sha256"],
+        }
+        result_collection = written["collection"]
+    else:
+        result_collection = put_collection(root, updated)
+        location = collection_result["location"]
+    return {
+        "collection": result_collection,
+        "location": location,
+        "included": included,
+        "changed": True,
+    }
 
 
 def write_review(library: str | Path, record: dict[str, Any]) -> dict[str, Any]:

@@ -114,6 +114,9 @@ def resolve_metadata(
         }
         validate_record(updated)
         atomic_json(path, updated)
+        from .catalog import index_work_if_present
+
+        index_work_if_present(root, updated)
     return {"work_id": work_id, "assertion": assertion, "accepted": False}
 
 
@@ -177,6 +180,9 @@ def accept_metadata_assertion(
         }
         validate_record(updated)
         atomic_json(path, updated)
+        from .catalog import index_work_if_present
+
+        index_work_if_present(root, updated)
     return {"work_id": work_id, "assertion_id": assertion_id, "accepted": True}
 
 

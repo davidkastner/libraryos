@@ -140,8 +140,10 @@ libraryos serve --library /path/to/private-library
 ```
 
 The browser interface lists and searches papers, filters by local PDF
-availability, and opens authoritative local PDFs in macOS Preview. Opening a
-paper does not create a review or claim that scientific inspection occurred.
+availability, organizes works into collections, and opens authoritative local
+PDFs in macOS Preview. A work may belong to multiple collections. Opening a
+paper or adding it to a collection does not create a review or claim that
+scientific inspection occurred.
 
 For a development checkout on macOS, install a local `Library.app` wrapper with:
 

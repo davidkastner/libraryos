@@ -71,6 +71,7 @@ from .records import (
     put_collection,
     restore_collection,
     restore_staged_removal,
+    set_collection_membership,
     stage_collection_removal,
     work_reachability,
     write_assessment,
@@ -184,6 +185,9 @@ OPERATIONS: dict[str, OperationDefinition] = {
     ),
     "collection.put": OperationDefinition(
         put_collection, True, False, "collection.write:{collection_id}"
+    ),
+    "collection.membership.set": OperationDefinition(
+        set_collection_membership, True, False, "collection.write:{collection_id}"
     ),
     "collection.get": OperationDefinition(
         get_collection, False, False, "collection.read:{collection_id}"
