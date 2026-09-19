@@ -30,8 +30,10 @@ security model, migration strategy, delivery phases, and v1 acceptance
 criteria. The [Stage 1 hardening roadmap](docs/stage-1-roadmap.md) turns those
 criteria into an auditable checklist, and the
 [Stage 1 acceptance report](docs/stage-1-acceptance-report.md) records the
-verification evidence and remaining limitations. Work on the graphical
-**Library** application begins only after the user accepts that gate.
+verification evidence and remaining limitations. Stage 1 was accepted on
+2026-09-19. The [Stage 2 UI plan](docs/stage-2-ui-plan.md) now specifies the
+graphical **Library** application and is the design gate before UI
+implementation.
 
 ## Core idea
 
