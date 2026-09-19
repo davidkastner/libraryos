@@ -110,7 +110,6 @@ kbd { padding: 2px 6px; border-radius: 5px; color: var(--tertiary); background: 
 .list-footer button:hover { background: rgba(0, 122, 255, .17); }
 .list-footer button:focus-visible { outline: 2px solid rgba(0,122,255,.4); outline-offset: 2px; }
 .list-footer button:disabled { color: var(--tertiary); background: rgba(118,118,128,.08); cursor: default; }
-.library-note { max-width: 1040px; margin: 14px auto 0; color: var(--tertiary); font-size: 10.5px; text-align: center; }
 .empty { max-width: 1040px; margin: 0 auto; padding: 100px 20px; text-align: center; border-radius: 14px; background: var(--surface); }
 .empty-symbol { width: 50px; height: 50px; display: grid; place-items: center; margin: 0 auto; border-radius: 15px; color: var(--secondary); background: rgba(118,118,128,.1); }
 .empty-symbol svg { width: 25px; fill: none; stroke: currentColor; stroke-width: 1.4; }
