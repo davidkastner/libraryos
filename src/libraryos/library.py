@@ -64,6 +64,7 @@ def initialize_library(
         "records/reviews",
         "records/assessments",
         "records/occurrences",
+        "records/external-documents",
         "records/collection-registrations",
         "records/collection-archives",
         "records/migrations",
@@ -214,6 +215,7 @@ def validate_library(path: str | Path, *, verify_hashes: bool = True) -> dict[st
     derivative_count = 0
     quarantine_count = 0
     occurrence_count = 0
+    external_document_count = 0
     collection_count = 0
     identifier_owners: dict[tuple[str, str], tuple[str, str]] = {}
 
@@ -280,6 +282,10 @@ def validate_library(path: str | Path, *, verify_hashes: bool = True) -> dict[st
         (root / "records" / "assessments", "https://libraryos.dev/schemas/assessment/v1"),
         (root / "records" / "occurrences", "https://libraryos.dev/schemas/occurrence/v1"),
         (
+            root / "records" / "external-documents",
+            "https://libraryos.dev/schemas/external-document/v1",
+        ),
+        (
             root / "records" / "collection-registrations",
             "https://libraryos.dev/schemas/collection-registration/v1",
         ),
@@ -288,7 +294,12 @@ def validate_library(path: str | Path, *, verify_hashes: bool = True) -> dict[st
     ):
         if not directory.is_dir():
             continue
-        for record_path in sorted(directory.glob("*.json")):
+        record_paths = (
+            directory.glob("*/document.json")
+            if expected_schema.endswith("/external-document/v1")
+            else directory.glob("*.json")
+        )
+        for record_path in sorted(record_paths):
             record_count += 1
             try:
                 record = read_json_record(record_path)
@@ -327,6 +338,28 @@ def validate_library(path: str | Path, *, verify_hashes: bool = True) -> dict[st
                         ) from error
                 if expected_schema.endswith("/occurrence/v1"):
                     occurrence_count += 1
+                if expected_schema.endswith("/external-document/v1"):
+                    external_document_count += 1
+                    occurrence_paths = sorted(
+                        (record_path.parent / "occurrences").glob("*.json")
+                    )
+                    actual_ids: list[str] = []
+                    for occurrence_path in occurrence_paths:
+                        occurrence = read_json_record(occurrence_path)
+                        if occurrence["schema"] != "https://libraryos.dev/schemas/occurrence/v1":
+                            raise StorageError(
+                                "External document contains a non-occurrence record",
+                                code="record_schema_location_mismatch",
+                                path=str(occurrence_path),
+                            )
+                        actual_ids.append(occurrence["id"])
+                        occurrence_count += 1
+                    if set(actual_ids) != set(record["occurrence_ids"]):
+                        raise StorageError(
+                            "External document occurrence IDs do not match its records",
+                            code="external_document_occurrences_mismatch",
+                            path=str(record_path),
+                        )
                 if expected_schema.endswith("/collection/v1"):
                     collection_count += 1
                 if expected_schema.endswith("/collection-registration/v1"):
@@ -446,6 +479,7 @@ def validate_library(path: str | Path, *, verify_hashes: bool = True) -> dict[st
             "quarantine": quarantine_count,
             "collections": collection_count,
             "occurrences": occurrence_count,
+            "external_documents": external_document_count,
             "findings": len(findings),
         },
         "findings": findings,

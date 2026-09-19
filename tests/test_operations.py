@@ -164,6 +164,40 @@ def test_collection_write_implies_read_only_for_same_collection(tmp_path):
     assert other.value.code == "capability_denied"
 
 
+def test_collection_membership_operation_is_collection_scoped(tmp_path):
+    root = tmp_path / "library"
+    initialize_library(root)
+    work = create_work(root, work_type="article", title="A paper")
+    create_collection(root, collection_id="project-a", title="Project A")
+    create_collection(root, collection_id="project-b", title="Project B")
+
+    result = invoke(
+        "collection.membership.set",
+        {
+            "library": root,
+            "collection_id": "project-a",
+            "work_id": work["id"],
+            "included": True,
+        },
+        capabilities=["collection.write:project-a"],
+    )
+
+    assert result["result"]["included"] is True
+    assert result["result"]["changed"] is True
+    with pytest.raises(StorageError) as denied:
+        invoke(
+            "collection.membership.set",
+            {
+                "library": root,
+                "collection_id": "project-b",
+                "work_id": work["id"],
+                "included": True,
+            },
+            capabilities=["collection.write:project-a"],
+        )
+    assert denied.value.code == "capability_denied"
+
+
 def test_local_http_uses_same_operation(tmp_path):
     root = tmp_path / "library"
     initialize_library(root)

@@ -117,6 +117,35 @@ def resolve_read(
     }
 
 
+def resolve_reads(
+    library: str | Path,
+    work_ids: list[str],
+    *,
+    preference: list[str] | None = None,
+) -> dict[str, Any]:
+    """Resolve reading routes and manifests for a bounded set of works."""
+
+    if not isinstance(work_ids, list) or len(work_ids) > 1000:
+        raise StorageError(
+            "work_ids must be an array of at most 1000 IDs",
+            code="read_batch_invalid",
+        )
+    items = []
+    for work_id in work_ids:
+        work = get_work(library, work_id)
+        items.append(
+            {
+                "work": work,
+                "reading": resolve_read(library, work_id, preference=preference),
+            }
+        )
+    return {
+        "items": items,
+        "scientific_inspection": "not_performed",
+        "review_created": False,
+    }
+
+
 def open_read(
     library: str | Path,
     work_id: str,

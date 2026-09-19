@@ -5,8 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="color-scheme" content="light">
     <title>Library</title>
-    <link rel="icon" type="image/png" href="/assets/libraryos-icon-64.png">
-    <link rel="apple-touch-icon" href="/assets/libraryos-icon-512.png">
+    <link rel="icon" type="image/svg+xml" href="/assets/libraryos-icon.svg">
     <link rel="stylesheet" href="/assets/app.css">
     <script src="/assets/app.js" defer></script>
   </head>
@@ -14,7 +13,7 @@
     <div class="app">
       <aside class="sidebar">
         <div class="identity">
-          <img src="/assets/libraryos-icon-64.png" alt="">
+          <img src="/assets/libraryos-icon.svg" alt="">
           <span>Library</span>
         </div>
 
@@ -47,6 +46,14 @@
             </span>
             <span>Needs Source</span>
           </button>
+
+          <div class="nav-section-heading">
+            <p class="nav-label">Collections</p>
+            <button id="new-collection" class="add-collection" type="button" aria-label="New collection" title="New Collection">
+              <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 4v12M4 10h12"/></svg>
+            </button>
+          </div>
+          <div id="collection-nav" class="collection-nav"></div>
         </nav>
 
         <div class="sidebar-footer">
@@ -82,6 +89,11 @@
 
         <section id="papers" class="paper-list" aria-label="Papers"></section>
 
+        <div id="list-footer" class="list-footer" hidden>
+          <p id="visible-count"></p>
+          <button id="show-more" type="button">Show 100 More</button>
+        </div>
+
         <div id="empty" class="empty" hidden>
           <span class="empty-symbol">
             <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m15.5 15.5 4 4"/></svg>
@@ -90,7 +102,6 @@
           <p>Try another title, author, journal, DOI, or source.</p>
           <button id="clear-search" type="button">Clear Search</button>
         </div>
-        <p class="library-note">PDF availability is shown independently of scientific assessment.</p>
       </main>
     </div>
 
@@ -113,10 +124,55 @@
         <div class="availability">
           <span class="source-state"></span>
         </div>
-        <button class="open-button" type="button" aria-label="Open paper">
-          <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m7.5 4.5 5.5 5.5-5.5 5.5"/></svg>
-        </button>
+        <div class="paper-actions">
+          <button class="collection-button" type="button" aria-label="Add to collection">
+            <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3.5 5.5h5l1.5 2h6.5v8h-13z"/><path d="M10 9.5v4M8 11.5h4"/></svg>
+          </button>
+          <button class="copy-button" type="button" aria-label="Copy PDF path">
+            <svg viewBox="0 0 20 20" aria-hidden="true">
+              <rect x="6.5" y="6.5" width="9" height="9" rx="1.5"/>
+              <path d="M4.5 12.5h-.25A1.75 1.75 0 0 1 2.5 10.75v-6.5A1.75 1.75 0 0 1 4.25 2.5h6.5a1.75 1.75 0 0 1 1.75 1.75v.25"/>
+            </svg>
+          </button>
+          <button class="open-button" type="button" aria-label="Open paper">
+            <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m7.5 4.5 5.5 5.5-5.5 5.5"/></svg>
+          </button>
+        </div>
       </article>
     </template>
+
+    <dialog id="collection-dialog" class="dialog">
+      <form method="dialog">
+        <div class="dialog-heading">
+          <div>
+            <h2 id="collection-dialog-title">Collections</h2>
+            <p id="collection-dialog-subtitle"></p>
+          </div>
+          <button class="dialog-close" value="cancel" aria-label="Close" type="submit">×</button>
+        </div>
+        <div id="collection-choices" class="collection-choices"></div>
+        <div class="dialog-footer">
+          <button value="cancel" type="submit">Done</button>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog id="new-collection-dialog" class="dialog compact-dialog">
+      <form id="new-collection-form">
+        <div class="dialog-heading">
+          <div>
+            <h2>New Collection</h2>
+            <p>Group papers for a project or purpose.</p>
+          </div>
+          <button class="dialog-close" value="cancel" formmethod="dialog" aria-label="Close" type="submit">×</button>
+        </div>
+        <label class="field-label" for="collection-title">Name</label>
+        <input id="collection-title" class="text-field" type="text" maxlength="120" autocomplete="off" required>
+        <div class="dialog-footer split">
+          <button value="cancel" formmethod="dialog" type="submit">Cancel</button>
+          <button class="primary-button" id="create-collection" type="submit">Create</button>
+        </div>
+      </form>
+    </dialog>
   </body>
 </html>

@@ -125,6 +125,14 @@ libraryos serve
 The service binds to `127.0.0.1`, prints a new session token, requires that
 token for operations, and exposes its contract at `/openapi.json`.
 
+External-system adapters can use `work.resolve_identifiers`,
+`external_document.sync.preview`, `external_document.sync.apply`,
+`external_document.query`, `occurrence.query`, and `read.resolve_many` to
+synchronize document-scoped references and navigate available sources. These
+operations are domain-neutral: adapter-specific meaning stays in opaque
+namespaced extensions, and synchronization never implies scientific inspection
+or support.
+
 Launch the graphical **Library** interface for a local library with:
 
 ```bash
@@ -132,8 +140,10 @@ libraryos serve --library /path/to/private-library
 ```
 
 The browser interface lists and searches papers, filters by local PDF
-availability, and opens authoritative local PDFs in macOS Preview. Opening a
-paper does not create a review or claim that scientific inspection occurred.
+availability, organizes works into collections, and opens authoritative local
+PDFs in macOS Preview. A work may belong to multiple collections. Opening a
+paper or adding it to a collection does not create a review or claim that
+scientific inspection occurred.
 
 For a development checkout on macOS, install a local `Library.app` wrapper with:
 

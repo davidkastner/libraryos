@@ -56,12 +56,12 @@ def main() -> int:
             name.startswith("libraryos/schemas/") and name.endswith(".json")
             for name in names
         )
-        if schema_count != 14:
-            raise SystemExit(f"{wheels[0].name} contains {schema_count} schemas, expected 14")
+        if schema_count != 15:
+            raise SystemExit(f"{wheels[0].name} contains {schema_count} schemas, expected 15")
 
     print(
         f"verified {sdists[0].name} (docs and skill) and "
-        f"{wheels[0].name} (package and 14 schemas)"
+        f"{wheels[0].name} (package and 15 schemas)"
     )
     return 0
 

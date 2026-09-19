@@ -40,6 +40,61 @@ matches = invoke("search", {"library": library, "query": "cryogenic"})
 Creating or finding a work does not mean its source has been inspected or that
 it supports a claim.
 
+## Synchronize references from an external document
+
+Adapters may atomically synchronize the complete set of work occurrences
+contributed by one external document. The adapter—not LibraryOS—defines the
+document identity, attachment classes, external object paths, and any
+namespaced extension semantics.
+
+Resolve identifiers in a bounded batch, preserving invalid identifiers as
+unresolved occurrence records:
+
+```python
+resolved = invoke(
+    "work.resolve_identifiers",
+    {
+        "library": library,
+        "identifiers": [{"scheme": "doi", "value": "10.0000/example"}],
+        "create_missing": True,
+    },
+)["result"]
+work_id = resolved["items"][0]["work_id"]
+```
+
+Preview and apply the same complete replacement request. The preview token
+binds the exact request to the observed prior source hash:
+
+```python
+request = {
+    "library": library,
+    "collection_id": "example-corpus",
+    "adapter": "org.example.documents",
+    "document_id": "document-17",
+    "location": "records/document-17.yaml",
+    "source_sha256": "0" * 64,
+    "expected_previous_sha256": None,
+    "occurrences": [{
+        "external_key": "reference:1",
+        "work": work_id,
+        "attachment_class": "bibliography",
+        "external_object_paths": ["/references/0"],
+    }],
+}
+preview = invoke("external_document.sync.preview", request)["result"]
+applied = invoke(
+    "external_document.sync.apply",
+    {**request, "preview_token": preview["preview_token"]},
+)
+```
+
+Synchronizing an empty `occurrences` array retains the known document and
+records that it currently contributes no references. Removing an occurrence
+does not delete its shared work. Use `external_document.query`,
+`occurrence.query`, and `read.resolve_many` for subsequent navigation.
+Synchronization records structure only: every result explicitly leaves
+scientific inspection unperformed and scientific support unassessed.
+
 ## Least-authority collection access
 
 An agent assigned only `collection.read:standards-review` can fetch that
