@@ -6,6 +6,7 @@ const resultCount = document.querySelector("#result-count");
 const empty = document.querySelector("#empty");
 const toast = document.querySelector("#toast");
 let searchTimer;
+let selected = null;
 
 async function operation(name, arguments_) {
   const response = await fetch(`/v1/operations/${name}`, {
@@ -41,9 +42,7 @@ function showToast(message) {
 }
 
 async function openPaper(item, button) {
-  const original = button.querySelector("span").textContent;
   button.disabled = true;
-  button.querySelector("span").textContent = "Opening…";
   try {
     await operation("read.open", { work_id: item.id, application: "preview" });
     showToast("Opened in Preview · No review was recorded");
@@ -51,17 +50,22 @@ async function openPaper(item, button) {
     showToast(error.message);
   } finally {
     button.disabled = false;
-    button.querySelector("span").textContent = original;
   }
+}
+
+function selectPaper(article, item) {
+  papers.querySelectorAll(".paper.selected").forEach(row => row.classList.remove("selected"));
+  article.classList.add("selected");
+  selected = { article, item };
 }
 
 function render(items) {
   papers.replaceChildren();
+  selected = null;
   for (const item of items) {
     const fragment = template.content.cloneNode(true);
     const article = fragment.querySelector(".paper");
     fragment.querySelector("h2").textContent = item.title || "Untitled work";
-    fragment.querySelector(".type-badge").textContent = item.type;
     fragment.querySelector(".authors").textContent = authorText(item.authors);
     fragment.querySelector(".venue").textContent = item.container_title || "";
     fragment.querySelector(".year").textContent = item.issued || "";
@@ -69,15 +73,25 @@ function render(items) {
     const sourceState = fragment.querySelector(".source-state");
     const button = fragment.querySelector(".open-button");
     if (item.pdf_count) {
-      sourceState.textContent = item.pdf_count === 1 ? "PDF available" : `${item.pdf_count} PDFs`;
-      button.addEventListener("click", () => openPaper(item, button));
+      sourceState.textContent = item.pdf_count === 1 ? "Downloaded" : `${item.pdf_count} files`;
+      button.setAttribute("aria-label", `Open ${item.title || "paper"} in Preview`);
+      button.title = "Open in Preview";
+      button.addEventListener("click", event => {
+        event.stopPropagation();
+        openPaper(item, button);
+      });
       article.addEventListener("dblclick", () => openPaper(item, button));
     } else {
-      sourceState.textContent = item.source_count ? "No PDF" : "Needs source";
+      sourceState.textContent = item.source_count ? "No PDF" : "Missing";
       sourceState.classList.add("missing");
+      article.classList.add("no-pdf");
       button.disabled = true;
-      button.querySelector("span").textContent = "PDF unavailable";
     }
+    article.addEventListener("click", () => selectPaper(article, item));
+    article.addEventListener("focus", () => selectPaper(article, item));
+    article.addEventListener("keydown", event => {
+      if (event.key === "Enter" && item.pdf_count) openPaper(item, button);
+    });
     papers.append(fragment);
   }
 }
@@ -127,43 +141,32 @@ document.querySelector("#sort").addEventListener("change", event => {
   state.sort = event.target.value;
   loadPapers();
 });
-document.querySelectorAll("[data-availability]").forEach(button => {
-  button.addEventListener("click", () => {
-    document.querySelectorAll("[data-availability]").forEach(item => item.classList.remove("selected"));
-    button.classList.add("selected");
-    state.availability = button.dataset.availability;
-    loadPapers();
-  });
-});
 document.querySelectorAll(".nav-item[data-filter]").forEach(button => {
   button.addEventListener("click", () => {
     document.querySelectorAll(".nav-item").forEach(item => item.classList.remove("active"));
     button.classList.add("active");
+    document.querySelector("#page-title").textContent =
+      button.dataset.filter === "all" ? "All Papers" :
+      button.dataset.filter === "local_pdf" ? "Downloaded" : "Needs Source";
     state.availability = button.dataset.filter;
-    document.querySelectorAll("[data-availability]").forEach(item => {
-      item.classList.toggle("selected", item.dataset.availability === state.availability);
-    });
     loadPapers();
   });
 });
 document.querySelector("[data-recent]").addEventListener("click", event => {
   document.querySelectorAll(".nav-item").forEach(item => item.classList.remove("active"));
   event.currentTarget.classList.add("active");
+  document.querySelector("#page-title").textContent = "Recently Added";
   state.availability = "all";
   state.sort = "recent";
   document.querySelector("#sort").value = "recent";
-  document.querySelectorAll("[data-availability]").forEach(item => {
-    item.classList.toggle("selected", item.dataset.availability === "all");
-  });
   loadPapers();
 });
 document.querySelector("#clear-search").addEventListener("click", () => {
   search.value = "";
   state.query = "";
   state.availability = "all";
-  document.querySelectorAll("[data-availability]").forEach(item => {
-    item.classList.toggle("selected", item.dataset.availability === "all");
-  });
+  document.querySelectorAll(".nav-item").forEach(item => item.classList.toggle("active", item.dataset.filter === "all"));
+  document.querySelector("#page-title").textContent = "All Papers";
   loadPapers();
 });
 document.addEventListener("keydown", event => {
