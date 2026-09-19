@@ -259,7 +259,17 @@ def list_records(library: str | Path, kind: str) -> list[dict[str, Any]]:
     }
     if kind not in locations:
         raise StorageError("Unknown record kind", code="record_kind_invalid", path=kind)
-    return [read_json_record(path) for path in sorted(locations[kind].glob("*.json"))]
+    records = [read_json_record(path) for path in sorted(locations[kind].glob("*.json"))]
+    if kind == "occurrences":
+        records.extend(
+            read_json_record(path)
+            for path in sorted(
+                (root / "records" / "external-documents").glob(
+                    "*/occurrences/*.json"
+                )
+            )
+        )
+    return records
 
 
 def collection_queues(library: str | Path, collection_id: str) -> dict[str, Any]:

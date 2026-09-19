@@ -23,6 +23,12 @@ from .collections import (
     relocate_external_collection,
     revalidate_external_collection,
 )
+from .external_documents import (
+    query_external_documents,
+    query_occurrences,
+    sync_external_document_apply,
+    sync_external_document_preview,
+)
 from .jobs import (
     cancel_job,
     create_job,
@@ -52,7 +58,7 @@ from .migrations import (
 )
 from .preparation import prepare_source
 from .privacy import scan_privacy
-from .reading import open_read, resolve_read
+from .reading import open_read, resolve_read, resolve_reads
 from .records import (
     archive_collection,
     archive_collection_preview,
@@ -80,6 +86,7 @@ from .works import (
     query_works,
     register_derivative,
     register_source_candidate,
+    resolve_work_identifiers,
 )
 
 Operation = Callable[..., Any]
@@ -140,6 +147,9 @@ OPERATIONS: dict[str, OperationDefinition] = {
     "work.create": OperationDefinition(create_work, True, False, "library.maintain"),
     "work.list": OperationDefinition(list_works, False, False, "library.read"),
     "work.query": OperationDefinition(query_works, False, False, "library.read"),
+    "work.resolve_identifiers": OperationDefinition(
+        resolve_work_identifiers, True, False, "library.maintain"
+    ),
     "work.show": OperationDefinition(get_work, False, False, "library.read"),
     "bibliography.import": OperationDefinition(
         import_bibliography, True, False, "library.maintain"
@@ -167,6 +177,7 @@ OPERATIONS: dict[str, OperationDefinition] = {
     "search": OperationDefinition(search_catalog, False, False, "library.read"),
     "search.prepared": OperationDefinition(search_prepared, False, False, "library.read"),
     "read.resolve": OperationDefinition(resolve_read, False, False, "library.read"),
+    "read.resolve_many": OperationDefinition(resolve_reads, False, False, "library.read"),
     "read.open": OperationDefinition(open_read, False, False, "library.read"),
     "collection.create": OperationDefinition(
         create_collection, True, False, "library.maintain"
@@ -209,6 +220,18 @@ OPERATIONS: dict[str, OperationDefinition] = {
         write_occurrence, True, False, "library.maintain"
     ),
     "occurrence.list": OperationDefinition(_list_occurrences, False, False, "library.read"),
+    "occurrence.query": OperationDefinition(
+        query_occurrences, False, False, "library.read"
+    ),
+    "external_document.query": OperationDefinition(
+        query_external_documents, False, False, "library.read"
+    ),
+    "external_document.sync.preview": OperationDefinition(
+        sync_external_document_preview, False, False, "collection.write:{collection_id}"
+    ),
+    "external_document.sync.apply": OperationDefinition(
+        sync_external_document_apply, True, False, "collection.write:{collection_id}"
+    ),
     "archive.preview": OperationDefinition(
         archive_collection_preview, False, False, "collection.read:{collection_id}"
     ),

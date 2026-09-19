@@ -67,9 +67,10 @@ def test_validate_empty_library(tmp_path):
         "sources": 0,
         "derivatives": 0,
         "quarantine": 0,
-        "collections": 0,
-        "occurrences": 0,
-        "findings": 0,
+            "collections": 0,
+            "occurrences": 0,
+            "external_documents": 0,
+            "findings": 0,
     }
 
 

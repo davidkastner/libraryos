@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://libraryos.dev/schemas/external-document/v1",
+  "title": "LibraryOS external document revision v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "schema_version",
+    "id",
+    "collection_id",
+    "adapter",
+    "document_id",
+    "source",
+    "occurrence_ids",
+    "updated_at"
+  ],
+  "properties": {
+    "schema": {"const": "https://libraryos.dev/schemas/external-document/v1"},
+    "schema_version": {"const": 1},
+    "id": {"type": "string", "format": "uuid"},
+    "collection_id": {"type": "string", "minLength": 1},
+    "adapter": {"type": "string", "minLength": 1},
+    "document_id": {"type": "string", "minLength": 1},
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["location", "sha256"],
+      "properties": {
+        "location": {"type": "string", "minLength": 1},
+        "sha256": {"$ref": "https://libraryos.dev/schemas/common/v1#/$defs/sha256"}
+      }
+    },
+    "occurrence_ids": {
+      "type": "array",
+      "items": {"type": "string", "format": "uuid"},
+      "uniqueItems": true
+    },
+    "updated_at": {"$ref": "https://libraryos.dev/schemas/common/v1#/$defs/timestamp"},
+    "extensions": {"$ref": "https://libraryos.dev/schemas/common/v1#/$defs/extensions"}
+  }
+}

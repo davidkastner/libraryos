@@ -9,7 +9,7 @@ LibraryOS does not import `mechtools`, MECH schemas, or a private corpus.
 | Existing `mechtools literature` behavior | LibraryOS operation or contract | Compatibility action |
 |---|---|---|
 | `init_library`, safe roots, atomic files, locks | `initialize_library`; storage primitives | Delegate generic initialization after an explicit migration gate. |
-| DOI normalization and DOI-keyed bundles | Generic identifier normalization; UUID work identity | Resolve DOI to a LibraryOS work ID. Do not preserve DOI as physical identity. |
+| DOI normalization and DOI-keyed bundles | `work.resolve_identifiers`; UUID work identity | Resolve DOI to a LibraryOS work ID. Do not preserve DOI as physical identity. |
 | `resolve_metadata` / Crossref | `metadata.crossref.resolve`, `metadata.assertion.accept` | Delegate; LibraryOS deliberately separates assertion from acceptance. |
 | `discover_sources` | `source.crossref.discover`, provider contract | Delegate supported providers; port additional generic providers independently. |
 | `register_source`, `import_source`, acquisition | `source.candidate.register`, `source.import`, `source.acquire` | Delegate after manifest/path parity tests. |
@@ -19,6 +19,9 @@ LibraryOS does not import `mechtools`, MECH schemas, or a private corpus.
 | GROBID conversion | provider/converter extension, not yet a core v1 route | Keep optional adapter until a bounded, provenance-complete LibraryOS converter exists. |
 | `rebuild_index`, status, work display | `library.rebuild`, `library.status`, `work.show`, `read.resolve` | Delegate; consumers must not query either SQLite schema directly. |
 | prepared-text search | `search.prepared` | Delegate; search results have `scientific_support: not_assessed`. |
+| complete occurrence replacement for one external document | `external_document.sync.preview`, `external_document.sync.apply` | Keep document parsing and attachment semantics in the adapter; synchronize through a hash-bound, collection-scoped replacement. |
+| known document and occurrence lookup | `external_document.query`, `occurrence.query` | Preserve zero-reference documents and unresolved identifiers as first-class states. |
+| batch evidence navigation | `read.resolve_many` | Return manifests and best reading routes without creating reviews or claiming inspection. |
 | attempts, exceptions, resumable processing | durable job operations | Delegate generic execution; translate legacy statuses at the adapter boundary. |
 | `validate_library` | `library.validate` plus `legacy.audit` during transition | Run both until the disposable migration comparison passes. |
 | exception export/resolution | job exceptions and collection queues | Port only generic exception disposition that is not represented by existing jobs. |
@@ -66,8 +69,7 @@ The historical acquired/prepared discrepancy is retained as provenance. It is
 not repaired by deleting or relabeling records.
 
 Items 1–3 and 5 passed for the entire production corpus in the disposable
-rehearsal. The environment-variable transition and existing legacy CLI behavior
-also pass the mechtools CLI suite. Item 4's broad adapter delegation remains a
-post-cutover integration task; Stage 1 deliberately does not replace the
-MECH-specific legacy module or claim that production is already operating on
-the rehearsed v1 copy.
+rehearsal. LibraryOS now exposes the generic external-document synchronization,
+occurrence query, batch identifier-resolution, and batch reading operations
+needed by item 4. The MECH adapter and production cutover remain owned by
+MechTools; this LibraryOS API work does not claim that production has moved.

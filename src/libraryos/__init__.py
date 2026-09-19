@@ -13,6 +13,12 @@ from .collections import (
     relocate_external_collection,
     revalidate_external_collection,
 )
+from .external_documents import (
+    query_external_documents,
+    query_occurrences,
+    sync_external_document_apply,
+    sync_external_document_preview,
+)
 from .identity import normalize_identifier, resolve_identifier
 from .jobs import (
     append_attempt,
@@ -54,7 +60,7 @@ from .providers import (
     SourceCandidateResult,
     SourceDiscoveryProvider,
 )
-from .reading import resolve_read
+from .reading import resolve_read, resolve_reads
 from .records import (
     archive_collection,
     archive_collection_preview,
@@ -82,6 +88,7 @@ from .works import (
     list_works,
     register_derivative,
     register_source_candidate,
+    resolve_work_identifiers,
 )
 
 __all__ = [
@@ -109,6 +116,8 @@ __all__ = [
     "discover_crossref",
     "discover_sources",
     "export_collection",
+    "query_external_documents",
+    "query_occurrences",
     "get_collection",
     "get_job",
     "get_work",
@@ -142,6 +151,8 @@ __all__ = [
     "resolve_identifier",
     "resolve_metadata",
     "resolve_read",
+    "resolve_reads",
+    "resolve_work_identifiers",
     "restore_collection",
     "restore_staged_removal",
     "rollback_schema_migration",
@@ -154,6 +165,8 @@ __all__ = [
     "scan_privacy",
     "show_legacy_work",
     "stage_collection_removal",
+    "sync_external_document_apply",
+    "sync_external_document_preview",
     "validate_library",
     "validate_record",
     "update_job",

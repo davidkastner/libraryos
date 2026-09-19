@@ -123,6 +123,81 @@ def list_works(library: str | Path) -> list[dict[str, Any]]:
     ]
 
 
+def resolve_work_identifiers(
+    library: str | Path,
+    identifiers: list[dict[str, Any]],
+    *,
+    create_missing: bool = False,
+    work_type: str = "article",
+) -> dict[str, Any]:
+    """Resolve identifiers in one bounded pass and optionally create pending works."""
+
+    if not isinstance(identifiers, list) or len(identifiers) > 10000:
+        raise StorageError(
+            "identifiers must be an array of at most 10000 items",
+            code="identifier_batch_invalid",
+        )
+    root, _ = open_library(library)
+    manifests = list_works(root)
+    owners = {
+        identifier_key(identifier): manifest
+        for manifest in manifests
+        for identifier in manifest["work"]["identifiers"]
+    }
+    items: list[dict[str, Any]] = []
+    for index, supplied in enumerate(identifiers):
+        try:
+            normalized = normalize_identifiers([supplied])[0]
+        except StorageError as error:
+            items.append(
+                {
+                    "index": index,
+                    "supplied": supplied,
+                    "status": "invalid",
+                    "error": {"code": error.code, "message": str(error)},
+                }
+            )
+            continue
+        key = identifier_key(normalized)
+        work = owners.get(key)
+        status = "resolved"
+        if work is None and create_missing:
+            work = create_work(
+                root,
+                work_type=work_type,
+                title=None,
+                identifiers=[normalized],
+                metadata={
+                    "extensions": {
+                        "dev.libraryos.identity": {
+                            "metadata_status": "pending",
+                            "created_by": "work.resolve_identifiers",
+                        }
+                    }
+                },
+            )
+            owners[key] = work
+            status = "created"
+        items.append(
+            {
+                "index": index,
+                "supplied": supplied,
+                "normalized": normalized,
+                "status": status if work is not None else "missing",
+                "work_id": work["id"] if work is not None else None,
+            }
+        )
+    return {
+        "items": items,
+        "created": sum(item["status"] == "created" for item in items),
+        "resolved": sum(item["status"] == "resolved" for item in items),
+        "missing": sum(item["status"] == "missing" for item in items),
+        "invalid": sum(item["status"] == "invalid" for item in items),
+        "scientific_inspection": "not_performed",
+        "scientific_support": "not_assessed",
+    }
+
+
 def _author_label(author: object) -> str:
     if isinstance(author, str):
         return author

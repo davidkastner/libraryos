@@ -10,6 +10,7 @@
     "schema_version": {"const": 1},
     "id": {"type": "string", "format": "uuid"},
     "adapter": {"type": "string", "minLength": 1},
+    "external_key": {"type": "string", "minLength": 1},
     "external_source": {
       "type": "object",
       "additionalProperties": false,
@@ -22,6 +23,7 @@
     },
     "work": {
       "oneOf": [
+        {"type": "null"},
         {"type": "string", "format": "uuid"},
         {"$ref": "https://libraryos.dev/schemas/common/v1#/$defs/identifier"}
       ]
