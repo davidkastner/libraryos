@@ -123,6 +123,138 @@ def list_works(library: str | Path) -> list[dict[str, Any]]:
     ]
 
 
+def _author_label(author: object) -> str:
+    if isinstance(author, str):
+        return author
+    if not isinstance(author, dict):
+        return ""
+    if author.get("literal"):
+        return str(author["literal"])
+    return " ".join(
+        str(author[field]).strip()
+        for field in ("given", "family")
+        if author.get(field)
+    )
+
+
+def query_works(
+    library: str | Path,
+    *,
+    query: str = "",
+    limit: int = 50,
+    offset: int = 0,
+    sort: str = "recent",
+    work_type: str | None = None,
+    availability: str = "all",
+) -> dict[str, Any]:
+    """Return bounded work summaries for interactive clients."""
+
+    if not 1 <= limit <= 200:
+        raise StorageError("Limit must be between 1 and 200", code="query_limit_invalid")
+    if offset < 0:
+        raise StorageError("Offset cannot be negative", code="query_offset_invalid")
+    if sort not in {"recent", "title", "year_desc"}:
+        raise StorageError("Unknown work sort", code="query_sort_invalid", path=sort)
+    if availability not in {"all", "local_pdf", "needs_source"}:
+        raise StorageError(
+            "Unknown availability filter",
+            code="query_availability_invalid",
+            path=availability,
+        )
+
+    normalized_query = query.casefold().strip()
+    rows: list[dict[str, Any]] = []
+    for manifest in list_works(library):
+        work = manifest["work"]
+        authors = [_author_label(author) for author in work.get("authors", [])]
+        identifiers = [
+            {
+                "scheme": item["scheme"],
+                "value": item.get("normalized", item["value"]),
+            }
+            for item in work["identifiers"]
+        ]
+        pdfs = [
+            source
+            for source in manifest["sources"]
+            if source["media_type"] == "application/pdf"
+        ]
+        has_local_source = bool(manifest["sources"])
+        searchable = " ".join(
+            [
+                str(work.get("title") or ""),
+                *authors,
+                str(work.get("container_title") or ""),
+                str(work.get("issued") or ""),
+                work["type"],
+                *(f"{item['scheme']} {item['value']}" for item in identifiers),
+            ]
+        ).casefold()
+        if normalized_query and normalized_query not in searchable:
+            continue
+        if work_type is not None and work["type"] != work_type:
+            continue
+        if availability == "local_pdf" and not pdfs:
+            continue
+        if availability == "needs_source" and has_local_source:
+            continue
+        warnings = [
+            *manifest.get("warnings", []),
+            *(
+                warning
+                for artifact in [*manifest["sources"], *manifest["derivatives"]]
+                for warning in artifact.get("warnings", [])
+            ),
+        ]
+        rows.append(
+            {
+                "id": manifest["id"],
+                "type": work["type"],
+                "title": work.get("title"),
+                "authors": authors,
+                "container_title": work.get("container_title"),
+                "issued": work.get("issued"),
+                "identifiers": identifiers,
+                "created_at": manifest["created_at"],
+                "updated_at": manifest["updated_at"],
+                "source_count": len(manifest["sources"]),
+                "pdf_count": len(pdfs),
+                "derivative_count": len(manifest["derivatives"]),
+                "warning_count": len(warnings),
+                "scientific_support": "not_assessed",
+            }
+        )
+
+    if sort == "title":
+        rows.sort(key=lambda row: ((row["title"] or "").casefold(), row["id"]))
+    elif sort == "year_desc":
+        rows.sort(
+            key=lambda row: (
+                str(row["issued"] or ""),
+                (row["title"] or "").casefold(),
+                row["id"],
+            ),
+            reverse=True,
+        )
+    else:
+        rows.sort(key=lambda row: (row["created_at"], row["id"]), reverse=True)
+
+    types: dict[str, int] = {}
+    for row in rows:
+        types[row["type"]] = types.get(row["type"], 0) + 1
+    total = len(rows)
+    page = rows[offset : offset + limit]
+    return {
+        "items": page,
+        "total": total,
+        "offset": offset,
+        "limit": limit,
+        "has_more": offset + len(page) < total,
+        "facets": {"types": types},
+        "scientific_support": "not_assessed",
+    }
+
+
 def register_source_candidate(
     library: str | Path,
     work_id: str,

@@ -1,14 +1,15 @@
 # Stage 2 plan: the Library human application
 
-Status: **draft for owner review**
+Status: **accepted direction; implementation in progress**
 Branch: `stage-2-ui-plan`
 Last updated: **2026-09-19**
 
 This document turns the human-application requirements in the
 [product specification](product-specification.md) into an implementation-ready
-plan. It does not authorize implementation. Stage 2 begins with acceptance of
-this design, then delivers the shared query contracts and the browser
-application in reviewable increments.
+plan. The owner accepted implementation on 2026-09-19 with a narrower initial
+experience: paper browsing, flexible search, and opening local PDFs in macOS
+Preview. The embedded reader described below is deferred unless later use shows
+that it is necessary.
 
 ## 1. Outcome
 
@@ -243,9 +244,20 @@ mode: local PDF, source-faithful text, local structured source, stable source
 URL, or unavailable. Opening never changes review state. When unavailable,
 Discover and Import are offered according to capability.
 
-### 5.5 Reader
+### 5.5 Reading action
 
-The reader has three modes:
+The initial interface does not embed a PDF viewer. **Open in Preview** resolves
+the preferred authoritative local PDF through LibraryOS and asks macOS to open
+it in Preview. No local path is exposed to the browser. Opening never creates a
+review or claims that scientific inspection occurred.
+
+If no local PDF is available, the action is disabled and the interface states
+whether another source exists or source acquisition is needed.
+
+### 5.6 Deferred integrated reader
+
+If later workflows demonstrate a need for source-linked in-app inspection, a
+reader may add three modes:
 
 - **Prepared** — structured text and bounded artifacts with source locators
 - **Source pages** — rendered pages as visual authority
@@ -270,7 +282,7 @@ subject, judgment, summary, observations, limitations, locators, and optionally
 linked reviews. It never presents an assessment as a replacement for source
 review.
 
-### 5.6 Collections index and workspace
+### 5.7 Collections index and workspace
 
 The index separates active and archived collections and shows purpose,
 membership count, queue counts, last update, and external/local ownership.
@@ -291,7 +303,7 @@ External collections show their path, validated hash, and conflict state.
 Out-of-band changes trigger revalidation or conflict resolution; the app never
 silently overwrites them.
 
-### 5.7 Queues
+### 5.8 Queues
 
 Queues are explainable projections, not hidden task lists. Every row answers:
 “Why is this here?” and “What action removes it?”
@@ -305,7 +317,7 @@ Queues are explainable projections, not hidden task lists. Every row answers:
 Actions execute immediately only when short and atomic. Acquisition,
 preparation, rebuild, and other resumable work create or expose jobs.
 
-### 5.8 Jobs and exceptions
+### 5.9 Jobs and exceptions
 
 The activity indicator summarizes queued, running, failed, and interrupted
 jobs. The jobs screen exposes operation, initiator, capabilities, timestamps,
@@ -321,7 +333,7 @@ links to provenance and affected artifacts. Quarantine detail shows safe
 metadata and reason but never renders untrusted bytes inline. Rejected bytes
 may be revealed in the filesystem only through an explicit safe action.
 
-### 5.9 Maintenance and lifecycle
+### 5.10 Maintenance and lifecycle
 
 Maintenance reports descriptor/schema state, index state, storage by class,
 validation findings, trash retention, and quarantine counts. Validate is
@@ -514,7 +526,11 @@ refreshes affected queries rather than assuming events are authoritative.
 
 ## 11. Frontend architecture
 
-Recommended stack:
+The first browse/search slice uses semantic HTML, CSS, and a small JavaScript
+client shipped directly in the Python package. This keeps the executable
+surface minimal while the product interaction is validated. If later
+collection, review, and queue workflows make a component framework worthwhile,
+the recommended growth path is:
 
 - Vite, React, and strict TypeScript
 - React Router for routes and URL state
@@ -719,8 +735,8 @@ The plan recommends the following decisions:
 3. Use a three-mode reader—Prepared, Source pages, Compare—with system PDF open
    as a secondary action.
 4. Keep review and assessment as separate explicit composers.
-5. Use Vite + React + TypeScript, TanStack Query, CSS Modules, and a small
-   headless accessibility library.
+5. Keep the first slice dependency-light; reconsider Vite + React + TypeScript
+   when more stateful workflows are authorized.
 6. Add screen-oriented query operations to the shared LibraryOS layer before
    building feature screens.
 7. Use bounded polling rather than WebSockets for v1.

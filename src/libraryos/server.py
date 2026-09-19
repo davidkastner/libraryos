@@ -3,8 +3,11 @@
 from __future__ import annotations
 
 import json
+import mimetypes
 import secrets
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from importlib.resources import files
+from pathlib import Path
 from typing import Any
 
 from .operations import OPERATIONS, invoke, operation_contract
@@ -80,20 +83,49 @@ def openapi_document(host: str, port: int) -> dict[str, Any]:
 def make_handler(
     token: str,
     capabilities: list[str],
+    library: str | Path | None = None,
 ) -> type[BaseHTTPRequestHandler]:
     """Build an isolated request handler for one unguessable session token."""
 
     class Handler(BaseHTTPRequestHandler):
         server_version = "LibraryOS/1"
 
+        def _headers(self, content_type: str, length: int) -> None:
+            self.send_header("Content-Type", content_type)
+            self.send_header("Content-Length", str(length))
+            self.send_header("Cache-Control", "no-store")
+            self.send_header("X-Content-Type-Options", "nosniff")
+            self.send_header("Referrer-Policy", "no-referrer")
+
         def _json(self, status: int, value: object) -> None:
             payload = json.dumps(value, sort_keys=True).encode()
             self.send_response(status)
-            self.send_header("Content-Type", "application/json")
-            self.send_header("Content-Length", str(len(payload)))
-            self.send_header("Cache-Control", "no-store")
+            self._headers("application/json", len(payload))
             self.send_header("Content-Security-Policy", "default-src 'none'")
-            self.send_header("X-Content-Type-Options", "nosniff")
+            self.end_headers()
+            self.wfile.write(payload)
+
+        def _asset(self, relative: str) -> None:
+            root = files("libraryos").joinpath("ui")
+            candidate = root.joinpath(relative)
+            if not candidate.is_file():
+                self._json(404, {"ok": False, "error": {"code": "route_not_found"}})
+                return
+            payload = candidate.read_bytes()
+            content_type = mimetypes.guess_type(relative)[0] or "application/octet-stream"
+            self.send_response(200)
+            self._headers(content_type, len(payload))
+            if relative == "index.html":
+                self.send_header(
+                    "Set-Cookie",
+                    f"libraryos_session={token}; HttpOnly; SameSite=Strict; Path=/",
+                )
+            self.send_header(
+                "Content-Security-Policy",
+                "default-src 'self'; script-src 'self'; style-src 'self'; "
+                "img-src 'self' data:; connect-src 'self'; object-src 'none'; "
+                "base-uri 'none'; frame-ancestors 'none'",
+            )
             self.end_headers()
             self.wfile.write(payload)
 
@@ -102,10 +134,25 @@ def make_handler(
                 host, port = self.server.server_address
                 self._json(200, openapi_document(host, port))
                 return
+            if library is not None:
+                route = self.path.partition("?")[0]
+                if route in {"/", "/index.html"}:
+                    self._asset("index.html")
+                    return
+                if route.startswith("/assets/"):
+                    self._asset(route.removeprefix("/"))
+                    return
             self._json(404, {"ok": False, "error": {"code": "route_not_found"}})
 
         def do_POST(self) -> None:  # noqa: N802
-            if self.headers.get("Authorization") != f"Bearer {token}":
+            bearer_authorized = self.headers.get("Authorization") == f"Bearer {token}"
+            cookie_authorized = f"libraryos_session={token}" in self.headers.get(
+                "Cookie", ""
+            ).split("; ")
+            if cookie_authorized:
+                expected_origin = f"http://{self.headers.get('Host')}"
+                cookie_authorized = self.headers.get("Origin") == expected_origin
+            if not bearer_authorized and not cookie_authorized:
                 self._json(401, {"ok": False, "error": {"code": "unauthorized"}})
                 return
             prefix = "/v1/operations/"
@@ -119,6 +166,14 @@ def make_handler(
                 arguments = json.loads(self.rfile.read(length) or b"{}")
                 if not isinstance(arguments, dict):
                     raise StorageError("Arguments must be an object", code="arguments_invalid")
+                if library is not None:
+                    supplied_library = arguments.get("library")
+                    if supplied_library is not None and Path(supplied_library).resolve() != Path(library).resolve():
+                        raise StorageError(
+                            "This session is bound to a different library",
+                            code="library_scope_conflict",
+                        )
+                    arguments["library"] = str(Path(library).resolve())
                 self._json(
                     200,
                     invoke(
@@ -154,6 +209,7 @@ def create_server(
     port: int = 0,
     token: str | None = None,
     capabilities: list[str] | None = None,
+    library: str | Path | None = None,
 ) -> tuple[ThreadingHTTPServer, str]:
     """Create, but do not start, a localhost-only API server."""
 
@@ -168,16 +224,22 @@ def create_server(
     return (
         ThreadingHTTPServer(
             (host, port),
-            make_handler(session_token, session_capabilities),
+            make_handler(session_token, session_capabilities, library),
         ),
         session_token,
     )
 
 
-def serve(*, host: str = "127.0.0.1", port: int = 8765) -> None:
+def serve(
+    *,
+    host: str = "127.0.0.1",
+    port: int = 8765,
+    library: str | Path | None = None,
+    open_browser: bool = True,
+) -> None:
     """Run the local service until interrupted."""
 
-    server, token = create_server(host=host, port=port)
+    server, token = create_server(host=host, port=port, library=library)
     actual_host, actual_port = server.server_address
     print(
         json.dumps(
@@ -189,6 +251,10 @@ def serve(*, host: str = "127.0.0.1", port: int = 8765) -> None:
         ),
         flush=True,
     )
+    if library is not None and open_browser:
+        import webbrowser
+
+        webbrowser.open(f"http://{actual_host}:{actual_port}")
     try:
         server.serve_forever()
     finally:

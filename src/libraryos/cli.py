@@ -89,6 +89,8 @@ def _parser() -> argparse.ArgumentParser:
     serve_command = commands.add_parser("serve", help="Run the token-protected local API")
     serve_command.add_argument("--host", default="127.0.0.1")
     serve_command.add_argument("--port", type=int, default=8765)
+    serve_command.add_argument("--library")
+    serve_command.add_argument("--no-open", action="store_true")
 
     call = commands.add_parser("call", help="Invoke any versioned operation")
     call.add_argument("operation", help="Operation name, for example work.list")
@@ -289,7 +291,12 @@ def main(argv: list[str] | None = None) -> int:
             )
             return 0
         if arguments.command == "serve":
-            serve(host=arguments.host, port=arguments.port)
+            serve(
+                host=arguments.host,
+                port=arguments.port,
+                library=arguments.library,
+                open_browser=not arguments.no_open,
+            )
             return 0
         if arguments.command == "call":
             from .operations import invoke

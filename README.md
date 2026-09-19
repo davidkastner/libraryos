@@ -125,6 +125,16 @@ libraryos serve
 The service binds to `127.0.0.1`, prints a new session token, requires that
 token for operations, and exposes its contract at `/openapi.json`.
 
+Launch the graphical **Library** interface for a local library with:
+
+```bash
+libraryos serve --library /path/to/private-library
+```
+
+The browser interface lists and searches papers, filters by local PDF
+availability, and opens authoritative local PDFs in macOS Preview. Opening a
+paper does not create a review or claim that scientific inspection occurred.
+
 ## Data safety
 
 - Keep library instances outside Git and maintain independent backups.

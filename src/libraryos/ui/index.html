@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="color-scheme" content="light">
+    <title>Library</title>
+    <link rel="stylesheet" href="/assets/app.css">
+    <script src="/assets/app.js" defer></script>
+  </head>
+  <body>
+    <div class="app">
+      <aside class="sidebar">
+        <div class="traffic-lights" aria-hidden="true">
+          <span class="close"></span><span class="minimize"></span><span class="zoom"></span>
+        </div>
+        <div class="brand">
+          <div class="brand-mark" aria-hidden="true">
+            <svg viewBox="0 0 24 24"><path d="M4.5 5.5A2.5 2.5 0 0 1 7 3h10a2.5 2.5 0 0 1 2.5 2.5v13A2.5 2.5 0 0 1 17 21H7a2.5 2.5 0 0 1-2.5-2.5z"/><path d="M8 3v18M11.5 7h4.5M11.5 10h3"/></svg>
+          </div>
+          <div>
+            <strong>Library</strong>
+            <span id="library-subtitle">LibraryOS</span>
+          </div>
+        </div>
+
+        <nav aria-label="Library">
+          <p class="nav-label">Browse</p>
+          <button class="nav-item active" type="button" data-filter="all">
+            <svg viewBox="0 0 24 24"><path d="M4 5.5h16v14H4zM8 5.5v14"/></svg>
+            All Papers
+            <span class="count" id="nav-count">—</span>
+          </button>
+          <button class="nav-item" type="button" data-filter="local_pdf">
+            <svg viewBox="0 0 24 24"><path d="M7 3.5h7l4 4v13H7zM14 3.5v4h4"/></svg>
+            PDFs
+          </button>
+          <button class="nav-item" type="button" data-recent>
+            <svg viewBox="0 0 24 24"><path d="M12 7v5l3 2M4.8 7.5A8 8 0 1 1 4 12"/></svg>
+            Recently Added
+          </button>
+
+          <p class="nav-label">Status</p>
+          <button class="nav-item" type="button" data-filter="needs_source">
+            <svg viewBox="0 0 24 24"><path d="M12 8v5M12 17h.01M4 20h16L12 4z"/></svg>
+            Needs Source
+          </button>
+        </nav>
+
+        <div class="sidebar-footer">
+          <span class="status-dot"></span>
+          <div><strong>Local library</strong><span>Private on this Mac</span></div>
+        </div>
+      </aside>
+
+      <main>
+        <header class="toolbar">
+          <div>
+            <p class="eyebrow">Your research library</p>
+            <h1>All Papers</h1>
+          </div>
+          <div class="toolbar-actions">
+            <label class="search">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m15.5 15.5 4 4"/></svg>
+              <span class="sr-only">Search papers</span>
+              <input id="search" type="search" placeholder="Search title, author, journal, or DOI" autocomplete="off">
+              <kbd>⌘ K</kbd>
+            </label>
+          </div>
+        </header>
+
+        <section class="controls" aria-label="Paper filters">
+          <div class="segmented" role="group" aria-label="Source availability">
+            <button class="selected" type="button" data-availability="all">All</button>
+            <button type="button" data-availability="local_pdf">With PDF</button>
+            <button type="button" data-availability="needs_source">Needs source</button>
+          </div>
+          <label class="select-wrap">
+            <span class="sr-only">Sort papers</span>
+            <select id="sort">
+              <option value="recent">Recently added</option>
+              <option value="title">Title</option>
+              <option value="year_desc">Newest publication</option>
+            </select>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 10 4 4 4-4"/></svg>
+          </label>
+        </section>
+
+        <section class="result-summary" aria-live="polite">
+          <span id="result-count">Loading papers…</span>
+          <span class="honesty">Search results are navigation, not scientific assessment.</span>
+        </section>
+
+        <section id="papers" class="paper-list" aria-label="Papers"></section>
+
+        <div id="empty" class="empty" hidden>
+          <div class="empty-icon">
+            <svg viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m15.5 15.5 4 4"/></svg>
+          </div>
+          <h2>No papers found</h2>
+          <p>Try a different title, author, journal, DOI, or filter.</p>
+          <button id="clear-search" type="button">Clear search</button>
+        </div>
+      </main>
+    </div>
+
+    <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+    <template id="paper-template">
+      <article class="paper">
+        <div class="paper-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24"><path d="M6 3.5h8l4 4v13H6zM14 3.5v4h4M9 12h6M9 15.5h6"/></svg>
+        </div>
+        <div class="paper-body">
+          <div class="paper-heading">
+            <h2></h2>
+            <span class="type-badge"></span>
+          </div>
+          <p class="authors"></p>
+          <div class="metadata">
+            <span class="venue"></span>
+            <span class="year"></span>
+            <span class="identifier"></span>
+          </div>
+        </div>
+        <div class="paper-state">
+          <span class="source-state"></span>
+          <span class="support-state">Support not assessed</span>
+        </div>
+        <button class="open-button" type="button">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3.5h7l4 4v13H7zM14 3.5v4h4"/></svg>
+          <span>Open in Preview</span>
+        </button>
+      </article>
+    </template>
+  </body>
+</html>
