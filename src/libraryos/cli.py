@@ -91,6 +91,7 @@ def _parser() -> argparse.ArgumentParser:
     serve_command.add_argument("--port", type=int, default=8765)
     serve_command.add_argument("--library")
     serve_command.add_argument("--no-open", action="store_true")
+    serve_command.add_argument("--no-print-token", action="store_true")
 
     call = commands.add_parser("call", help="Invoke any versioned operation")
     call.add_argument("operation", help="Operation name, for example work.list")
@@ -296,6 +297,7 @@ def main(argv: list[str] | None = None) -> int:
                 port=arguments.port,
                 library=arguments.library,
                 open_browser=not arguments.no_open,
+                print_token=not arguments.no_print_token,
             )
             return 0
         if arguments.command == "call":

@@ -236,21 +236,21 @@ def serve(
     port: int = 8765,
     library: str | Path | None = None,
     open_browser: bool = True,
+    print_token: bool = True,
 ) -> None:
     """Run the local service until interrupted."""
 
     server, token = create_server(host=host, port=port, library=library)
     actual_host, actual_port = server.server_address
-    print(
-        json.dumps(
+    launch = {"url": f"http://{actual_host}:{actual_port}"}
+    if print_token:
+        launch.update(
             {
-                "url": f"http://{actual_host}:{actual_port}",
                 "token": token,
                 "warning": "Keep this per-session token private.",
             }
-        ),
-        flush=True,
-    )
+        )
+    print(json.dumps(launch), flush=True)
     if library is not None and open_browser:
         import webbrowser
 

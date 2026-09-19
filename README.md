@@ -135,6 +135,16 @@ The browser interface lists and searches papers, filters by local PDF
 availability, and opens authoritative local PDFs in macOS Preview. Opening a
 paper does not create a review or claim that scientific inspection occurred.
 
+For a development checkout on macOS, install a local `Library.app` wrapper with:
+
+```bash
+packaging/macos/install-development-app.sh
+```
+
+This unsigned development wrapper runs the current checkout rather than copying
+its Python environment into the application. A distributable, signed,
+self-contained macOS build remains a later packaging stage.
+
 ## Data safety
 
 - Keep library instances outside Git and maintain independent backups.

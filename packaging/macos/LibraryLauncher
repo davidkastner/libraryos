@@ -1,0 +1,78 @@
+#!/bin/zsh
+set -eu
+umask 077
+
+repo="/Users/dkastner/Argonne/Projects/MechanismAtlas/libraryos"
+python="$repo/.venv/bin/python"
+support="$HOME/Library/Application Support/LibraryOS"
+selection="$support/library-path"
+pid_file="$support/server.pid"
+log_file="$support/library.log"
+url="http://127.0.0.1:8765"
+rehearsal="/private/tmp/libraryos-rehearsal-20260919"
+
+mkdir -p "$support"
+
+choose_library() {
+  selected=$(/usr/bin/osascript <<'APPLESCRIPT'
+set selectedFolder to choose folder with prompt "Choose a LibraryOS library folder"
+return POSIX path of selectedFolder
+APPLESCRIPT
+  )
+  selected=${selected%/}
+  if [[ ! -f "$selected/library.json" ]]; then
+    /usr/bin/osascript -e 'display alert "This is not a LibraryOS library" message "Choose a folder containing library.json." as critical'
+    exit 1
+  fi
+  print -r -- "$selected" > "$selection"
+}
+
+if [[ ! -f "$selection" ]]; then
+  if [[ -f "$rehearsal/library.json" ]]; then
+    print -r -- "$rehearsal" > "$selection"
+  else
+    choose_library
+  fi
+elif [[ ! -f "$(head -n 1 "$selection" 2>/dev/null)/library.json" ]]; then
+  choose_library
+fi
+
+library=$(head -n 1 "$selection")
+
+if [[ -f "$pid_file" ]]; then
+  pid=$(cat "$pid_file")
+  if kill -0 "$pid" 2>/dev/null; then
+    /usr/bin/open "$url"
+    exit 0
+  fi
+fi
+
+if [[ ! -x "$python" ]]; then
+  /usr/bin/osascript -e 'display alert "LibraryOS is not available" message "The development environment could not be found. Reinstall Library.app from the LibraryOS repository." as critical'
+  exit 1
+fi
+
+(
+  cd "$repo"
+  exec "$python" -m libraryos serve \
+    --library "$library" \
+    --port 8765 \
+    --no-open \
+    --no-print-token
+) >> "$log_file" 2>&1 &
+server_pid=$!
+print -r -- "$server_pid" > "$pid_file"
+
+for attempt in {1..50}; do
+  if /usr/bin/curl --fail --silent "$url/" >/dev/null 2>&1; then
+    /usr/bin/open "$url"
+    exit 0
+  fi
+  if ! kill -0 "$server_pid" 2>/dev/null; then
+    break
+  fi
+  /bin/sleep 0.1
+done
+
+/usr/bin/osascript -e 'display alert "Library could not start" message "See ~/Library/Application Support/LibraryOS/library.log for details." as critical'
+exit 1
