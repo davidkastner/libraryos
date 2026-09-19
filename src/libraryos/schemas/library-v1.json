@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://libraryos.dev/schemas/library/v1",
+  "title": "LibraryOS library descriptor v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "schema_version", "id", "created_at"],
+  "properties": {
+    "schema": {"const": "https://libraryos.dev/schemas/library/v1"},
+    "schema_version": {"const": 1},
+    "id": {"type": "string", "format": "uuid"},
+    "title": {"type": "string"},
+    "description": {"type": "string"},
+    "created_at": {"$ref": "https://libraryos.dev/schemas/common/v1#/$defs/timestamp"},
+    "updated_at": {"$ref": "https://libraryos.dev/schemas/common/v1#/$defs/timestamp"},
+    "policies": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "retain_unreferenced_metadata": {"type": "boolean", "default": true},
+        "trash_retention_days": {"type": "integer", "minimum": 1, "default": 30}
+      }
+    },
+    "extensions": {"$ref": "https://libraryos.dev/schemas/common/v1#/$defs/extensions"}
+  }
+}

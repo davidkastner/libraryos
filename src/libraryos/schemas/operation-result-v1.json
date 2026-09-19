@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://libraryos.dev/schemas/operation-result/v1",
+  "title": "LibraryOS successful operation result v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contract_version", "operation", "ok", "effects", "result"],
+  "properties": {
+    "contract_version": {"const": 1},
+    "operation": {"type": "string", "pattern": "^libraryos\\.[a-z0-9_.-]+$"},
+    "ok": {"const": true},
+    "effects": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["mutation", "network"],
+      "properties": {
+        "mutation": {"type": "boolean"},
+        "network": {"type": "boolean"}
+      }
+    },
+    "warnings": {"type": "array", "items": {"type": "string"}},
+    "result": true
+  }
+}

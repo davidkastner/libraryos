@@ -1,0 +1,77 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://libraryos.dev/schemas/job/v1",
+  "title": "LibraryOS durable job v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "schema_version", "id", "operation", "status", "requested_by", "capabilities", "arguments", "attempts", "exceptions", "history", "created_at", "updated_at"],
+  "properties": {
+    "schema": {"const": "https://libraryos.dev/schemas/job/v1"},
+    "schema_version": {"const": 1},
+    "id": {"type": "string", "format": "uuid"},
+    "operation": {"type": "string", "pattern": "^libraryos\\.[a-z0-9_.-]+$"},
+    "status": {"enum": ["queued", "running", "succeeded", "failed", "cancelled", "interrupted"]},
+    "requested_by": {"$ref": "https://libraryos.dev/schemas/common/v1#/$defs/actor"},
+    "capabilities": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+    "arguments": {"type": "object"},
+    "checkpoint": {"type": "object"},
+    "result": true,
+    "history": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["action", "from_status", "to_status", "occurred_at"],
+        "properties": {
+          "action": {"enum": ["created", "transitioned", "cancelled", "retried", "reconciled"]},
+          "from_status": {
+            "oneOf": [
+              {"type": "null"},
+              {"enum": ["queued", "running", "succeeded", "failed", "cancelled", "interrupted"]}
+            ]
+          },
+          "to_status": {"enum": ["queued", "running", "succeeded", "failed", "cancelled", "interrupted"]},
+          "occurred_at": {"$ref": "https://libraryos.dev/schemas/common/v1#/$defs/timestamp"},
+          "reason": {"type": "string", "maxLength": 2000}
+        }
+      }
+    },
+    "attempts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "started_at", "status"],
+        "properties": {
+          "id": {"type": "string", "format": "uuid"},
+          "provider": {"type": "string"},
+          "started_at": {"$ref": "https://libraryos.dev/schemas/common/v1#/$defs/timestamp"},
+          "completed_at": {"$ref": "https://libraryos.dev/schemas/common/v1#/$defs/timestamp"},
+          "status": {"enum": ["running", "succeeded", "failed"]},
+          "diagnostic": {"type": "string"},
+          "error_code": {"type": "string"}
+        }
+      }
+    },
+    "exceptions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "category", "message", "state", "created_at"],
+        "properties": {
+          "id": {"type": "string", "format": "uuid"},
+          "category": {"type": "string"},
+          "message": {"type": "string"},
+          "state": {"enum": ["open", "resolved", "deferred"]},
+          "created_at": {"$ref": "https://libraryos.dev/schemas/common/v1#/$defs/timestamp"},
+          "resolved_at": {"$ref": "https://libraryos.dev/schemas/common/v1#/$defs/timestamp"}
+        }
+      }
+    },
+    "created_at": {"$ref": "https://libraryos.dev/schemas/common/v1#/$defs/timestamp"},
+    "updated_at": {"$ref": "https://libraryos.dev/schemas/common/v1#/$defs/timestamp"},
+    "extensions": {"$ref": "https://libraryos.dev/schemas/common/v1#/$defs/extensions"}
+  }
+}

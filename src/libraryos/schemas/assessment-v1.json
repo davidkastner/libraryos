@@ -1,0 +1,37 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://libraryos.dev/schemas/assessment/v1",
+  "title": "LibraryOS contextual assessment v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "schema_version", "id", "collection_id", "subject", "author", "purpose", "summary", "created_at"],
+  "properties": {
+    "schema": {"const": "https://libraryos.dev/schemas/assessment/v1"},
+    "schema_version": {"const": 1},
+    "id": {"type": "string", "format": "uuid"},
+    "collection_id": {"type": "string", "minLength": 1},
+    "subject": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "id"],
+      "properties": {
+        "kind": {"enum": ["work", "source", "membership", "claim", "project_object"]},
+        "id": {"type": "string", "minLength": 1}
+      }
+    },
+    "author": {"$ref": "https://libraryos.dev/schemas/common/v1#/$defs/actor"},
+    "purpose": {"type": "string", "minLength": 1},
+    "judgment": {"type": "string"},
+    "summary": {"type": "string", "minLength": 1},
+    "observations": {"type": "array", "items": {"type": "string"}},
+    "limitations": {"type": "array", "items": {"type": "string"}},
+    "locators": {
+      "type": "array",
+      "items": {"$ref": "https://libraryos.dev/schemas/common/v1#/$defs/locator"}
+    },
+    "review_ids": {"type": "array", "items": {"type": "string", "format": "uuid"}, "uniqueItems": true},
+    "created_at": {"$ref": "https://libraryos.dev/schemas/common/v1#/$defs/timestamp"},
+    "supersedes": {"type": "array", "items": {"type": "string", "format": "uuid"}},
+    "extensions": {"$ref": "https://libraryos.dev/schemas/common/v1#/$defs/extensions"}
+  }
+}

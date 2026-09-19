@@ -1,0 +1,165 @@
+"""Public package surface for LibraryOS."""
+
+from .acquisition import acquire_url
+from .bibliography import import_bibliography, parse_bibliography
+from .catalog import rebuild_catalog, search_catalog, search_prepared
+from .collections import (
+    export_collection,
+    get_collection,
+    list_collections,
+    put_external_collection,
+    read_collection_file,
+    register_external_collection,
+    relocate_external_collection,
+    revalidate_external_collection,
+)
+from .identity import normalize_identifier, resolve_identifier
+from .jobs import (
+    append_attempt,
+    append_exception,
+    cancel_job,
+    create_job,
+    get_job,
+    list_jobs,
+    reconcile_jobs,
+    retry_job,
+    update_job,
+)
+from .legacy import (
+    audit_legacy_library,
+    list_legacy_works,
+    preview_legacy_migration,
+    rehearse_legacy_migration,
+    show_legacy_work,
+)
+from .library import initialize_library, open_library, validate_library
+from .metadata import (
+    accept_metadata_assertion,
+    discover_crossref,
+    discover_sources,
+    resolve_crossref,
+    resolve_metadata,
+)
+from .migrations import (
+    apply_schema_migration,
+    preview_schema_migration,
+    rollback_schema_migration,
+)
+from .preparation import prepare_source
+from .privacy import scan_privacy
+from .providers import (
+    CrossrefProvider,
+    MetadataProvider,
+    MetadataProviderResult,
+    SourceCandidateResult,
+    SourceDiscoveryProvider,
+)
+from .reading import resolve_read
+from .records import (
+    archive_collection,
+    archive_collection_preview,
+    collection_queues,
+    create_collection,
+    import_assessment,
+    list_records,
+    purge_preview,
+    purge_staged_removal,
+    put_collection,
+    restore_collection,
+    restore_staged_removal,
+    stage_collection_removal,
+    work_reachability,
+    write_assessment,
+    write_occurrence,
+    write_review,
+)
+from .schemas import SchemaError, available_schemas, load_schema, validate_record
+from .storage import StorageError
+from .works import (
+    create_work,
+    get_work,
+    import_source,
+    list_works,
+    register_derivative,
+    register_source_candidate,
+)
+
+__all__ = [
+    "CrossrefProvider",
+    "MetadataProvider",
+    "MetadataProviderResult",
+    "SchemaError",
+    "SourceCandidateResult",
+    "SourceDiscoveryProvider",
+    "StorageError",
+    "accept_metadata_assertion",
+    "acquire_url",
+    "apply_schema_migration",
+    "append_attempt",
+    "append_exception",
+    "audit_legacy_library",
+    "available_schemas",
+    "archive_collection",
+    "archive_collection_preview",
+    "cancel_job",
+    "collection_queues",
+    "create_collection",
+    "create_job",
+    "create_work",
+    "discover_crossref",
+    "discover_sources",
+    "export_collection",
+    "get_collection",
+    "get_job",
+    "get_work",
+    "import_bibliography",
+    "import_assessment",
+    "import_source",
+    "initialize_library",
+    "list_collections",
+    "list_jobs",
+    "list_legacy_works",
+    "list_records",
+    "list_works",
+    "load_schema",
+    "normalize_identifier",
+    "open_library",
+    "parse_bibliography",
+    "preview_legacy_migration",
+    "rehearse_legacy_migration",
+    "preview_schema_migration",
+    "prepare_source",
+    "put_external_collection",
+    "read_collection_file",
+    "revalidate_external_collection",
+    "reconcile_jobs",
+    "rebuild_catalog",
+    "register_derivative",
+    "register_external_collection",
+    "register_source_candidate",
+    "relocate_external_collection",
+    "resolve_crossref",
+    "resolve_identifier",
+    "resolve_metadata",
+    "resolve_read",
+    "restore_collection",
+    "restore_staged_removal",
+    "rollback_schema_migration",
+    "retry_job",
+    "purge_preview",
+    "purge_staged_removal",
+    "put_collection",
+    "search_catalog",
+    "search_prepared",
+    "scan_privacy",
+    "show_legacy_work",
+    "stage_collection_removal",
+    "validate_library",
+    "validate_record",
+    "update_job",
+    "work_reachability",
+    "write_assessment",
+    "write_review",
+    "write_occurrence",
+]
+__version__ = "0.1.0.dev0"

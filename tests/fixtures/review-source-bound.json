@@ -1,0 +1,34 @@
+{
+  "schema": "https://libraryos.dev/schemas/review/v1",
+  "schema_version": 1,
+  "id": "d92df56e-ed89-45a8-a637-8363c86a7308",
+  "work_id": "3f998366-761b-4ac3-9075-37cc617e05e7",
+  "source_sha256": [
+    "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  ],
+  "reviewer": {
+    "kind": "human",
+    "id": "local:researcher"
+  },
+  "purpose": "scope-review",
+  "completed_at": "2026-09-19T12:00:00Z",
+  "coverage": [
+    {
+      "artifact_id": "source-pdf",
+      "type": "page_range",
+      "value": [1, 8],
+      "label": "Introduction through discussion"
+    },
+    {
+      "artifact_id": "source-pdf",
+      "type": "figure",
+      "value": "3"
+    }
+  ],
+  "observations": [
+    "The stated scope and principal contribution were examined."
+  ],
+  "limitations": [
+    "Supplementary data were not reviewed."
+  ]
+}

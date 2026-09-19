@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://libraryos.dev/schemas/occurrence/v1",
+  "title": "LibraryOS external citation occurrence v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "schema_version", "id", "adapter", "external_source", "work", "attachment_class", "external_object_paths", "inventoried_at"],
+  "properties": {
+    "schema": {"const": "https://libraryos.dev/schemas/occurrence/v1"},
+    "schema_version": {"const": 1},
+    "id": {"type": "string", "format": "uuid"},
+    "adapter": {"type": "string", "minLength": 1},
+    "external_source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["location", "sha256"],
+      "properties": {
+        "location": {"type": "string", "minLength": 1},
+        "sha256": {"$ref": "https://libraryos.dev/schemas/common/v1#/$defs/sha256"},
+        "record_id": {"type": "string"}
+      }
+    },
+    "work": {
+      "oneOf": [
+        {"type": "string", "format": "uuid"},
+        {"$ref": "https://libraryos.dev/schemas/common/v1#/$defs/identifier"}
+      ]
+    },
+    "normalization_error": {"type": "string"},
+    "attachment_class": {"type": "string", "minLength": 1},
+    "external_object_paths": {
+      "type": "array",
+      "items": {"type": "string", "minLength": 1},
+      "uniqueItems": true
+    },
+    "inventoried_at": {"$ref": "https://libraryos.dev/schemas/common/v1#/$defs/timestamp"},
+    "scientific_support": {"const": "not_assessed"},
+    "extensions": {"$ref": "https://libraryos.dev/schemas/common/v1#/$defs/extensions"}
+  }
+}

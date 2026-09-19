@@ -1,0 +1,126 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://libraryos.dev/schemas/common/v1",
+  "title": "LibraryOS common definitions v1",
+  "$defs": {
+    "timestamp": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "relativePath": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$))(?!.*\\\\).+$"
+    },
+    "identifier": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["scheme", "value"],
+      "properties": {
+        "scheme": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-z][a-z0-9._-]*$"
+        },
+        "value": {
+          "type": "string",
+          "minLength": 1
+        },
+        "normalized": {
+          "type": "string",
+          "minLength": 1
+        },
+        "status": {
+          "enum": ["unverified", "verified", "conflicting", "deprecated"]
+        }
+      }
+    },
+    "actor": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "id"],
+      "properties": {
+        "kind": {
+          "enum": ["human", "agent", "service", "import"]
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "label": {
+          "type": "string"
+        }
+      }
+    },
+    "extensions": {
+      "type": "object",
+      "propertyNames": {
+        "pattern": "^[a-z0-9]+(?:\\.[a-z0-9-]+)+$"
+      },
+      "additionalProperties": true
+    },
+    "locator": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["artifact_id", "type", "value"],
+      "properties": {
+        "artifact_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "type": {
+          "enum": [
+            "page",
+            "page_range",
+            "section",
+            "heading",
+            "figure",
+            "panel",
+            "scheme",
+            "table",
+            "equation",
+            "supplement",
+            "paragraph",
+            "line_range",
+            "passage",
+            "time_range",
+            "fragment",
+            "whole_artifact"
+          ]
+        },
+        "value": {
+          "oneOf": [
+            {"type": "string", "minLength": 1},
+            {"type": "integer", "minimum": 0},
+            {
+              "type": "array",
+              "minItems": 2,
+              "maxItems": 2,
+              "prefixItems": [
+                {"type": ["number", "string"]},
+                {"type": ["number", "string"]}
+              ],
+              "items": false
+            }
+          ]
+        },
+        "label": {
+          "type": "string"
+        },
+        "quote": {
+          "type": "string"
+        },
+        "quote_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "source_locator": {
+          "$ref": "#/$defs/locator"
+        }
+      }
+    }
+  }
+}
