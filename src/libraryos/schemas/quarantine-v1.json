@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://libraryos.dev/schemas/quarantine/v1",
+  "title": "LibraryOS quarantined source v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "schema_version", "id", "work_id", "path", "sha256", "bytes", "media_type", "reason", "provider", "canonical_url", "identity_method", "created_at"],
+  "properties": {
+    "schema": {"const": "https://libraryos.dev/schemas/quarantine/v1"},
+    "schema_version": {"const": 1},
+    "id": {"type": "string", "format": "uuid"},
+    "work_id": {"type": "string", "format": "uuid"},
+    "path": {"$ref": "https://libraryos.dev/schemas/common/v1#/$defs/relativePath"},
+    "sha256": {"$ref": "https://libraryos.dev/schemas/common/v1#/$defs/sha256"},
+    "bytes": {"type": "integer", "minimum": 1},
+    "media_type": {"type": "string", "minLength": 1},
+    "reason": {
+      "enum": ["ambiguous_identity", "access_restricted", "abstract_only", "bot_challenge", "corrupt_source", "landing_page", "type_mismatch"]
+    },
+    "provider": {"type": "string", "minLength": 1},
+    "canonical_url": {"type": "string", "format": "uri"},
+    "identity_method": {"type": "string", "minLength": 1},
+    "created_at": {"$ref": "https://libraryos.dev/schemas/common/v1#/$defs/timestamp"}
+  }
+}

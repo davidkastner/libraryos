@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://libraryos.dev/schemas/trash-transaction/v1",
+  "title": "LibraryOS staged trash transaction v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "schema_version", "id", "kind", "collection_id", "state", "moved", "staged_at", "purge_after"],
+  "properties": {
+    "schema": {"const": "https://libraryos.dev/schemas/trash-transaction/v1"},
+    "schema_version": {"const": 1},
+    "id": {"type": "string", "format": "uuid"},
+    "kind": {"const": "collection_removal"},
+    "collection_id": {"type": "string", "minLength": 1},
+    "state": {"enum": ["staged", "restored", "purged"]},
+    "moved": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["original", "trashed"],
+        "properties": {
+          "original": {"$ref": "https://libraryos.dev/schemas/common/v1#/$defs/relativePath"},
+          "trashed": {"$ref": "https://libraryos.dev/schemas/common/v1#/$defs/relativePath"}
+        }
+      }
+    },
+    "staged_at": {"$ref": "https://libraryos.dev/schemas/common/v1#/$defs/timestamp"},
+    "purge_after": {"$ref": "https://libraryos.dev/schemas/common/v1#/$defs/timestamp"},
+    "restored_at": {"$ref": "https://libraryos.dev/schemas/common/v1#/$defs/timestamp"},
+    "purged_at": {"$ref": "https://libraryos.dev/schemas/common/v1#/$defs/timestamp"}
+  }
+}

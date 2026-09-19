@@ -1,0 +1,81 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://libraryos.dev/schemas/collection/v1",
+  "title": "LibraryOS collection v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "schema_version", "id", "title", "status", "members"],
+  "properties": {
+    "schema": {"const": "https://libraryos.dev/schemas/collection/v1"},
+    "schema_version": {"const": 1},
+    "id": {"type": "string", "minLength": 1, "pattern": "^[a-z0-9][a-z0-9._-]*$"},
+    "title": {"type": "string", "minLength": 1},
+    "description": {"type": "string"},
+    "kind": {"type": "string", "minLength": 1},
+    "status": {"enum": ["active", "archived"]},
+    "created_at": {"$ref": "https://libraryos.dev/schemas/common/v1#/$defs/timestamp"},
+    "updated_at": {"$ref": "https://libraryos.dev/schemas/common/v1#/$defs/timestamp"},
+    "project": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "name": {"type": "string"},
+        "url": {"type": "string", "format": "uri"},
+        "path": {"type": "string"}
+      }
+    },
+    "policy": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "citation_requires_local_source": {"type": "boolean"},
+        "required_review_purpose": {"type": "string"}
+      }
+    },
+    "members": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["work"],
+        "properties": {
+          "work": {
+            "oneOf": [
+              {"type": "string", "format": "uuid"},
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["identifier"],
+                "properties": {
+                  "identifier": {"$ref": "https://libraryos.dev/schemas/common/v1#/$defs/identifier"}
+                }
+              }
+            ]
+          },
+          "order": {"type": "number"},
+          "priority": {"type": "string"},
+          "disposition": {"type": "string"},
+          "citation_key": {"type": "string"},
+          "tags": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+          "notes": {"type": "string"},
+          "assessment_ids": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+          "extensions": {"$ref": "https://libraryos.dev/schemas/common/v1#/$defs/extensions"}
+        }
+      }
+    },
+    "outputs": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["kind", "path"],
+        "properties": {
+          "kind": {"enum": ["overview_markdown", "bibtex", "csl_json", "ris", "canonical_json"]},
+          "path": {"type": "string", "minLength": 1},
+          "options": {"type": "object"}
+        }
+      }
+    },
+    "extensions": {"$ref": "https://libraryos.dev/schemas/common/v1#/$defs/extensions"}
+  }
+}
