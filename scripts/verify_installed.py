@@ -84,7 +84,7 @@ def main() -> int:
         )
 
     assert version == "libraryos 0.1.0.dev0"
-    assert len(schemas) == 14
+    assert len(schemas) == 15
     assert len(operations) == 62
     assert initialized["operation"] == "libraryos.library.initialize"
     assert created["result"]["work"]["title"] == "Clean install"
