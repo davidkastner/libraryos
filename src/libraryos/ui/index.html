@@ -118,9 +118,17 @@
         <div class="availability">
           <span class="source-state"></span>
         </div>
-        <button class="open-button" type="button" aria-label="Open paper">
-          <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m7.5 4.5 5.5 5.5-5.5 5.5"/></svg>
-        </button>
+        <div class="paper-actions">
+          <button class="copy-button" type="button" aria-label="Copy PDF path">
+            <svg viewBox="0 0 20 20" aria-hidden="true">
+              <rect x="6.5" y="6.5" width="9" height="9" rx="1.5"/>
+              <path d="M4.5 12.5h-.25A1.75 1.75 0 0 1 2.5 10.75v-6.5A1.75 1.75 0 0 1 4.25 2.5h6.5a1.75 1.75 0 0 1 1.75 1.75v.25"/>
+            </svg>
+          </button>
+          <button class="open-button" type="button" aria-label="Open paper">
+            <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m7.5 4.5 5.5 5.5-5.5 5.5"/></svg>
+          </button>
+        </div>
       </article>
     </template>
   </body>

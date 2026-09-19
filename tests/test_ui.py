@@ -56,6 +56,8 @@ def test_bound_ui_server_serves_app_and_injects_library_scope(tmp_path):
         assert "/assets/libraryos-icon-64.png" in html
         assert 'id="show-more"' in html
         assert "Show 100 More" in html
+        assert 'class="copy-button"' in html
+        assert 'aria-label="Copy PDF path"' in html
         icon = urllib.request.urlopen(f"{base}/assets/libraryos-icon-64.png")
         assert icon.headers["Content-Type"] == "image/png"
         assert len(icon.read()) > 1_000

@@ -58,6 +58,42 @@ async function openPaper(item, button) {
   }
 }
 
+async function writeClipboard(text) {
+  if (navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(text);
+    return;
+  }
+  const input = document.createElement("textarea");
+  input.value = text;
+  input.setAttribute("readonly", "");
+  input.style.position = "fixed";
+  input.style.opacity = "0";
+  document.body.append(input);
+  input.select();
+  const copied = document.execCommand("copy");
+  input.remove();
+  if (!copied) throw new Error("The PDF path could not be copied.");
+}
+
+async function copyPaperPath(item, button) {
+  button.disabled = true;
+  try {
+    const result = await operation("read.resolve", {
+      work_id: item.id,
+      preference: ["local_pdf"],
+    });
+    if (result.representation !== "local_pdf" || !result.path) {
+      throw new Error("No local PDF is available for this paper.");
+    }
+    await writeClipboard(result.path);
+    showToast("PDF path copied");
+  } catch (error) {
+    showToast(error.message);
+  } finally {
+    button.disabled = false;
+  }
+}
+
 function selectPaper(article, item) {
   papers.querySelectorAll(".paper.selected").forEach(row => row.classList.remove("selected"));
   article.classList.add("selected");
@@ -79,20 +115,29 @@ function render(items, append = false) {
     fragment.querySelector(".identifier").textContent = identifierText(item.identifiers);
     const sourceState = fragment.querySelector(".source-state");
     const button = fragment.querySelector(".open-button");
+    const copyButton = fragment.querySelector(".copy-button");
     if (item.pdf_count) {
       sourceState.textContent = item.pdf_count === 1 ? "Downloaded" : `${item.pdf_count} files`;
       button.setAttribute("aria-label", `Open ${item.title || "paper"} in Preview`);
       button.title = "Open in Preview";
+      copyButton.setAttribute("aria-label", `Copy PDF path for ${item.title || "paper"}`);
+      copyButton.title = "Copy PDF path";
       button.addEventListener("click", event => {
         event.stopPropagation();
         openPaper(item, button);
       });
+      copyButton.addEventListener("click", event => {
+        event.stopPropagation();
+        copyPaperPath(item, copyButton);
+      });
+      copyButton.addEventListener("dblclick", event => event.stopPropagation());
       article.addEventListener("dblclick", () => openPaper(item, button));
     } else {
       sourceState.textContent = item.source_count ? "No PDF" : "Missing";
       sourceState.classList.add("missing");
       article.classList.add("no-pdf");
       button.disabled = true;
+      copyButton.disabled = true;
     }
     article.addEventListener("click", () => selectPaper(article, item));
     article.addEventListener("focus", () => selectPaper(article, item));
