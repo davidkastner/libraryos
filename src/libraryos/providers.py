@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -38,6 +39,18 @@ class SourceCandidateResult:
     version: str = "unknown"
 
 
+@dataclass(frozen=True)
+class RelatedWorkResult:
+    """One provider-discovered scholarly relation; never an evidence judgment."""
+
+    relation: str
+    identifiers: list[dict[str, Any]]
+    title: str | None
+    publication_year: int | None
+    source_url: str
+    provider_work_id: str
+
+
 class MetadataProvider(Protocol):
     name: str
     version: str
@@ -50,6 +63,19 @@ class SourceDiscoveryProvider(Protocol):
     version: str
 
     def discover(self, work: dict[str, Any]) -> list[SourceCandidateResult]: ...
+
+
+class RelationDiscoveryProvider(Protocol):
+    name: str
+    version: str
+
+    def discover(
+        self,
+        identifier: dict[str, Any],
+        *,
+        directions: list[str],
+        limit: int,
+    ) -> list[RelatedWorkResult]: ...
 
 
 JsonTransport = Callable[[str, dict[str, str], float], tuple[dict[str, Any], bytes]]
@@ -247,3 +273,159 @@ class CrossrefProvider:
                 )
             )
         return results
+
+
+class OpenAlexProvider:
+    """Backward and forward scholarly-relation discovery through OpenAlex."""
+
+    name = "openalex"
+    version = "api-v1"
+    _DIRECTIONS = {"references", "citations"}
+
+    def __init__(
+        self,
+        *,
+        email: str | None = None,
+        timeout: float = 30,
+        transport: JsonTransport | None = None,
+    ) -> None:
+        self.email = email
+        self.timeout = timeout
+        self.transport = transport or _default_json_transport
+
+    def _request(self, url: str) -> dict[str, Any]:
+        headers = {
+            "Accept": "application/json",
+            "User-Agent": (
+                f"libraryos/0.1 (mailto:{self.email})"
+                if self.email
+                else "libraryos/0.1"
+            ),
+        }
+        response, _ = self.transport(url, headers, self.timeout)
+        return response
+
+    @staticmethod
+    def _openalex_id(value: Any) -> str | None:
+        if not isinstance(value, str):
+            return None
+        identifier = value.rstrip("/").rsplit("/", 1)[-1]
+        return identifier if re.fullmatch(r"W[1-9]\d*", identifier) else None
+
+    @staticmethod
+    def _related_work(message: dict[str, Any], relation: str) -> RelatedWorkResult | None:
+        provider_id = OpenAlexProvider._openalex_id(message.get("id"))
+        if provider_id is None:
+            return None
+        identifiers: list[dict[str, Any]] = [
+            {"scheme": "openalex", "value": provider_id, "normalized": provider_id}
+        ]
+        doi = message.get("doi")
+        if isinstance(doi, str):
+            try:
+                identifiers.insert(0, normalize_identifier({"scheme": "doi", "value": doi}))
+            except StorageError:
+                pass
+        year = message.get("publication_year")
+        return RelatedWorkResult(
+            relation=relation,
+            identifiers=identifiers,
+            title=message.get("display_name") if isinstance(message.get("display_name"), str) else None,
+            publication_year=year if isinstance(year, int) else None,
+            source_url=f"https://api.openalex.org/works/{provider_id}",
+            provider_work_id=provider_id,
+        )
+
+    def discover(
+        self,
+        identifier: dict[str, Any],
+        *,
+        directions: list[str],
+        limit: int,
+    ) -> list[RelatedWorkResult]:
+        requested = normalize_identifier(identifier)
+        if requested["scheme"] != "doi":
+            raise StorageError(
+                "OpenAlex relation discovery currently requires a DOI",
+                code="provider_identifier_unsupported",
+                path=requested["scheme"],
+            )
+        unknown = sorted(set(directions) - self._DIRECTIONS)
+        if unknown:
+            raise StorageError(
+                f"Unknown relation direction: {', '.join(unknown)}",
+                code="relation_direction_invalid",
+                path=unknown[0],
+            )
+        if not directions:
+            raise StorageError(
+                "At least one relation direction is required",
+                code="relation_direction_invalid",
+            )
+        if not 1 <= limit <= 100:
+            raise StorageError(
+                "Relation discovery limit must be between 1 and 100",
+                code="relation_limit_invalid",
+                path=str(limit),
+            )
+
+        doi_url = f"https://doi.org/{requested['normalized']}"
+        seed_url = (
+            "https://api.openalex.org/works/"
+            + urllib.parse.quote(doi_url, safe="")
+        )
+        seed = self._request(seed_url)
+        seed_id = self._openalex_id(seed.get("id"))
+        if seed_id is None:
+            raise StorageError(
+                "OpenAlex returned a seed work without a valid work ID",
+                code="provider_response_invalid",
+                path=seed_url,
+            )
+
+        query_urls: list[tuple[str, str]] = []
+        if "references" in directions:
+            referenced_ids = [
+                candidate
+                for value in seed.get("referenced_works", [])[:limit]
+                if (candidate := self._openalex_id(value)) is not None
+            ]
+            if referenced_ids:
+                query_urls.append(
+                    (
+                        "references",
+                        "https://api.openalex.org/works?filter=openalex_id:"
+                        + urllib.parse.quote("|".join(referenced_ids), safe="|")
+                        + f"&per-page={min(limit, len(referenced_ids))}",
+                    )
+                )
+        if "citations" in directions:
+            query_urls.append(
+                (
+                    "citations",
+                    "https://api.openalex.org/works?filter="
+                    + urllib.parse.quote(f"cites:{seed_id}", safe=":")
+                    + f"&per-page={limit}",
+                )
+            )
+
+        discovered: list[RelatedWorkResult] = []
+        seen: set[tuple[str, str]] = set()
+        for relation, url in query_urls:
+            response = self._request(url)
+            results = response.get("results")
+            if not isinstance(results, list):
+                raise StorageError(
+                    "OpenAlex relation response has no results array",
+                    code="provider_response_invalid",
+                    path=url,
+                )
+            for message in results:
+                if not isinstance(message, dict):
+                    continue
+                item = self._related_work(message, relation)
+                if item is None or (relation, item.provider_work_id) in seen:
+                    continue
+                seen.add((relation, item.provider_work_id))
+                discovered.append(item)
+        return discovered

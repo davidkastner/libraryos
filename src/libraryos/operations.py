@@ -49,6 +49,7 @@ from .library import initialize_library, open_library, validate_library
 from .metadata import (
     accept_metadata_assertion,
     discover_crossref,
+    discover_openalex_relations,
     resolve_crossref,
 )
 from .migrations import (
@@ -163,6 +164,9 @@ OPERATIONS: dict[str, OperationDefinition] = {
     ),
     "source.crossref.discover": OperationDefinition(
         discover_crossref, True, True, "source.acquire"
+    ),
+    "relations.openalex.discover": OperationDefinition(
+        discover_openalex_relations, False, True, "library.read"
     ),
     "source.import": OperationDefinition(import_source, True, False, "source.acquire"),
     "source.candidate.register": OperationDefinition(

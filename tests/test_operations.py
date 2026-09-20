@@ -50,6 +50,9 @@ def test_operation_contracts_describe_every_public_operation():
     assert create["arguments_schema"]["properties"]["identifiers"]["default"] is None
     assert create["effects"] == {"mutation": True, "network": False}
     assert create["required_capability"] == "library.maintain"
+    relations = operation_contract("relations.openalex.discover")
+    assert relations["effects"] == {"mutation": False, "network": True}
+    assert relations["required_capability"] == "library.read"
 
 
 def test_operation_arguments_are_validated_before_dispatch(tmp_path):

@@ -327,22 +327,49 @@ def search_catalog(library: str | Path, query: str, *, limit: int = 50) -> list[
 
 
 def search_prepared(
-    library: str | Path, query: str, *, limit: int = 50
+    library: str | Path,
+    query: str,
+    *,
+    limit: int = 50,
+    work_ids: list[str] | None = None,
 ) -> list[dict[str, Any]]:
-    """Navigate prepared text with exact artifact routing and no support claim."""
+    """Navigate prepared text, optionally within explicit works, with no support claim."""
 
     root, _ = open_library(library)
     root, path = ensure_catalog(root)
+    if not 1 <= limit <= 200:
+        raise ValueError("Limit must be between 1 and 200")
+    if work_ids is not None:
+        if (
+            not isinstance(work_ids, list)
+            or len(work_ids) > 1000
+            or any(not isinstance(work_id, str) or not work_id.strip() for work_id in work_ids)
+        ):
+            raise ValueError("work_ids must be an array of at most 1000 non-empty strings")
+        work_ids = list(dict.fromkeys(work_ids))
+        if not work_ids:
+            return []
     connection = sqlite3.connect(f"{path.resolve().as_uri()}?mode=ro", uri=True)
     connection.row_factory = sqlite3.Row
     try:
+        predicate = "prepared_text MATCH ?"
+        parameters: list[Any] = [query]
+        if work_ids is not None:
+            placeholders = ",".join("?" for _ in work_ids)
+            predicate += f" AND work_id IN ({placeholders})"
+            parameters.extend(work_ids)
+        parameters.append(limit)
         rows = connection.execute(
-            """
+            f"""
             SELECT work_id, artifact_id, path,
-                   snippet(prepared_text, 3, '[', ']', ' … ', 24) AS context
-            FROM prepared_text WHERE prepared_text MATCH ? LIMIT ?
+                   snippet(prepared_text, 3, '[', ']', ' … ', 24) AS context,
+                   bm25(prepared_text) AS relevance
+            FROM prepared_text
+            WHERE {predicate}
+            ORDER BY relevance, work_id, artifact_id
+            LIMIT ?
             """,
-            (query, limit),
+            parameters,
         ).fetchall()
     except sqlite3.OperationalError as error:
         raise ValueError(f"Invalid full-text query: {error}") from error
@@ -358,6 +385,7 @@ def search_prepared(
             },
             "scientific_support": "not_assessed",
             "search_scope": "prepared_text",
+            "work_scope": "explicit" if work_ids is not None else "library",
         }
         for row in rows
     ]
