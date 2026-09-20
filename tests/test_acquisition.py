@@ -61,7 +61,7 @@ def _verified_candidate(root, work_id, url, access="open_access"):
         verified_by="fixture-provider",
         verified_at="2026-09-19T12:00:00Z",
     )
-    return {"method": "registered_candidate", "candidate_id": candidate["candidate"]["id"]}
+    return {"candidate_id": candidate["candidate"]["id"]}
 
 
 def test_acquisition_requires_access_authorization(tmp_path):
@@ -97,6 +97,49 @@ def test_acquisition_requires_identity_before_network(tmp_path, source_server):
             allowed_access=["open_access"],
         )
     assert caught.value.code == "identity_evidence_required"
+    assert list_jobs(root) == []
+
+
+def test_non_candidate_identity_requires_method_before_network(tmp_path, source_server):
+    base_url, routes = source_server
+    routes["/report.txt"] = (200, "text/plain", b"Remote report\n")
+    root = tmp_path / "library"
+    initialize_library(root)
+    work = create_work(root, work_type="report", title="Remote report")
+    with pytest.raises(StorageError) as caught:
+        acquire_url(
+            root,
+            work["id"],
+            f"{base_url}/report.txt",
+            role="full_text",
+            access="open_access",
+            allowed_access=["open_access"],
+            identity_evidence={"title": "Remote report"},
+        )
+    assert caught.value.code == "identity_evidence_invalid"
+    assert list_jobs(root) == []
+
+
+def test_candidate_only_identity_rejects_unknown_candidate_before_network(
+    tmp_path,
+    source_server,
+):
+    base_url, routes = source_server
+    routes["/report.txt"] = (200, "text/plain", b"Remote report\n")
+    root = tmp_path / "library"
+    initialize_library(root)
+    work = create_work(root, work_type="report", title="Remote report")
+    with pytest.raises(StorageError) as caught:
+        acquire_url(
+            root,
+            work["id"],
+            f"{base_url}/report.txt",
+            role="full_text",
+            access="open_access",
+            allowed_access=["open_access"],
+            identity_evidence={"candidate_id": "missing-candidate"},
+        )
+    assert caught.value.code == "source_candidate_not_found"
     assert list_jobs(root) == []
 
 
