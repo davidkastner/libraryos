@@ -179,6 +179,41 @@ def test_bounded_acquisition_records_verified_source_without_inspection(
     assert "review" not in job
 
 
+def test_xml_suffix_media_type_is_accepted_as_xml(tmp_path, source_server):
+    base_url, routes = source_server
+    body = (
+        b'<?xml version="1.0" encoding="UTF-8"?>'
+        b"<collection><document><id>123</id>"
+        b"<passage><text>Remote report</text></passage>"
+        b"</document></collection>"
+    )
+    routes["/report.xml"] = (200, "application/xslt+xml", body)
+    root = tmp_path / "library"
+    initialize_library(root)
+    work = create_work(root, work_type="report", title="Remote report")
+
+    result = acquire_url(
+        root,
+        work["id"],
+        f"{base_url}/report.xml",
+        role="full_text",
+        access="open_access",
+        allowed_access=["open_access"],
+        expected_media_type="application/xml",
+        identity_evidence={
+            "method": "expected_sha256",
+            "expected_sha256": hashlib.sha256(body).hexdigest(),
+        },
+    )
+
+    assert result["created"] is True
+    source = get_work(root, work["id"])["sources"][0]
+    assert source["media_type"] == "application/xml"
+    assert source["path"].endswith(".xml")
+    assert (root / "works" / work["id"] / source["path"]).read_bytes() == body
+    assert not list((root / "quarantine").glob("*/manifest.json"))
+
+
 @pytest.mark.parametrize(
     ("path", "media_type", "body", "expected_code"),
     [

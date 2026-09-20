@@ -203,18 +203,33 @@ def _sniff_media_type(prefix: bytes) -> str:
     return "text/plain"
 
 
+def _suffix_for_media_type(media_type: str, *, fallback: str) -> str:
+    """Return stable canonical suffixes before consulting platform MIME tables."""
+
+    canonical = {
+        "application/pdf": ".pdf",
+        "application/xml": ".xml",
+        "application/zip": ".zip",
+        "image/png": ".png",
+        "text/html": ".html",
+        "text/plain": ".txt",
+    }
+    return canonical.get(media_type, mimetypes.guess_extension(media_type) or fallback)
+
+
 def _inspect_response(path: Path, declared_media_type: str) -> tuple[str, str | None]:
     prefix, suffix = _read_edges(path)
     sniffed = _sniff_media_type(prefix)
     sample = prefix.lower()
     declared = declared_media_type.casefold().split(";", 1)[0].strip()
+    declared_is_xml = (
+        declared in {"text/xml", "application/xml"}
+        or declared.endswith("+xml")
+    )
     compatible = (
         declared in {"application/octet-stream", "binary/octet-stream"}
         or declared == sniffed
-        or (
-            declared in {"text/xml", "application/xml"}
-            and sniffed == "application/xml"
-        )
+        or (declared_is_xml and sniffed == "application/xml")
         or (declared.startswith("text/") and sniffed == "text/plain")
     )
     if not compatible:
@@ -279,7 +294,7 @@ def _quarantine(
     quarantine_id = str(uuid.uuid4())
     directory = resolve_library_path(root, f"quarantine/{quarantine_id}")
     directory.mkdir(mode=0o700)
-    suffix = mimetypes.guess_extension(media_type) or ".bin"
+    suffix = _suffix_for_media_type(media_type, fallback=".bin")
     payload = directory / f"payload{suffix}"
     try:
         shutil.copyfile(source_path, payload)
@@ -471,7 +486,7 @@ def acquire_url(
                 code=rejection,
                 path=quarantine["id"],
             )
-        suffix = mimetypes.guess_extension(media_type) or ""
+        suffix = _suffix_for_media_type(media_type, fallback="")
         named = temporary.with_suffix(suffix)
         temporary.rename(named)
         temporary = named
