@@ -769,9 +769,10 @@ with the target work. V1 accepts an expected source hash, an identifier or exact
 title that can be checked against textual source bytes, or a previously
 verified provider candidate registered on that work with verifier and
 timestamp. Candidate acquisition must match its canonical URL and access class;
-an inline assertion cannot self-certify a candidate. The successful transfer of
-bytes is not identity evidence. Source records may be marked `verified` only
-after one of these checks succeeds.
+the registered candidate supplies its authoritative identity method, so callers
+need only pass its `candidate_id`. An inline assertion cannot self-certify a
+candidate. The successful transfer of bytes is not identity evidence. Source
+records may be marked `verified` only after one of these checks succeeds.
 
 Request URLs may contain transient query parameters needed for retrieval, but
 durable job, source, and quarantine records retain only a canonical HTTP(S)

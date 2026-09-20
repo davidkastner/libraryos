@@ -91,10 +91,23 @@ def _validate_identity_evidence(
             "Identity evidence contains unsupported fields",
             code="identity_evidence_invalid",
         )
+    candidate_id = evidence.get("candidate_id")
+    if candidate_id is not None and (
+        not isinstance(candidate_id, str) or not candidate_id.strip()
+    ):
+        raise StorageError(
+            "candidate_id must be a nonempty string",
+            code="identity_evidence_invalid",
+        )
     method = evidence.get("method")
-    if not isinstance(method, str) or not method.strip():
+    if candidate_id is None and (not isinstance(method, str) or not method.strip()):
         raise StorageError(
             "Identity evidence requires a nonempty method",
+            code="identity_evidence_invalid",
+        )
+    if method is not None and (not isinstance(method, str) or not method.strip()):
+        raise StorageError(
+            "Identity evidence method must be a nonempty string when supplied",
             code="identity_evidence_invalid",
         )
     expected_hash = evidence.get("expected_sha256")
@@ -141,14 +154,6 @@ def _validate_identity_evidence(
                 "Identity evidence does not agree with the target work title",
                 code="identity_evidence_conflict",
             )
-    candidate_id = evidence.get("candidate_id")
-    if candidate_id is not None and (
-        not isinstance(candidate_id, str) or not candidate_id.strip()
-    ):
-        raise StorageError(
-            "candidate_id must be a nonempty string",
-            code="identity_evidence_invalid",
-        )
     if (
         not expected_hash
         and not asserted_identifiers
@@ -160,7 +165,7 @@ def _validate_identity_evidence(
             code="identity_evidence_invalid",
         )
     return {
-        "method": method.strip(),
+        **({"method": method.strip()} if method is not None else {}),
         **({"expected_sha256": expected_hash.casefold()} if expected_hash else {}),
         **({"identifiers": normalized_identifiers} if identifiers else {}),
         **({"title": title} if title is not None else {}),
