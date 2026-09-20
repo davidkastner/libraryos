@@ -123,7 +123,22 @@ def resolve_metadata(
         from .catalog import index_work_if_present
 
         index_work_if_present(root, updated)
-    return {"work_id": work_id, "assertion": assertion, "accepted": False}
+    return {
+        "work_id": work_id,
+        "assertion": assertion,
+        "accepted": False,
+        "next_actions": [
+            {
+                "operation": "metadata.assertion.accept",
+                "purpose": "Review and explicitly accept the resolved bibliographic metadata.",
+                "arguments": {
+                    "library": str(root),
+                    "work_id": work_id,
+                    "assertion_id": assertion["id"],
+                },
+            }
+        ],
+    }
 
 
 def accept_metadata_assertion(
@@ -189,7 +204,18 @@ def accept_metadata_assertion(
         from .catalog import index_work_if_present
 
         index_work_if_present(root, updated)
-    return {"work_id": work_id, "assertion_id": assertion_id, "accepted": True}
+    return {
+        "work_id": work_id,
+        "assertion_id": assertion_id,
+        "accepted": True,
+        "next_actions": [
+            {
+                "operation": "source.crossref.discover",
+                "purpose": "Discover source candidates without retrieving bytes.",
+                "arguments": {"library": str(root), "work_id": work_id},
+            }
+        ],
+    }
 
 
 def discover_sources(
@@ -219,12 +245,31 @@ def discover_sources(
                 version=candidate.version,
             )
         )
+    next_actions = [
+        {
+            "operation": "source.acquire",
+            "purpose": "Acquire this candidate after choosing its source role and authorizing its access class.",
+            "arguments": {
+                "library": str(Path(library).expanduser().resolve()),
+                "work_id": work_id,
+                "url": item["candidate"]["url"],
+                "access": item["candidate"]["access"],
+                "allowed_access": [item["candidate"]["access"]],
+                "identity_evidence": {
+                    "candidate_id": item["candidate"]["id"],
+                },
+            },
+            "required_arguments": ["role"],
+        }
+        for item in results
+    ]
     return {
         "work_id": work_id,
         "provider": {"name": provider.name, "version": provider.version},
         "candidates": results,
         "acquired": False,
         "scientific_inspection": "not_assessed",
+        "next_actions": next_actions,
     }
 
 

@@ -168,6 +168,20 @@ def test_bounded_acquisition_records_verified_source_without_inspection(
     )
     assert result["created"] is True
     source = get_work(root, work["id"])["sources"][0]
+    assert result["next_actions"] == [
+        {
+            "operation": "source.prepare",
+            "purpose": (
+                "Prepare searchable and visual navigation derivatives from the "
+                "acquired immutable source."
+            ),
+            "arguments": {
+                "library": str(root.resolve()),
+                "work_id": work["id"],
+                "source_id": source["id"],
+            },
+        }
+    ]
     assert source["identity_status"] == "verified"
     assert source["identity_method"] == "expected_sha256"
     assert source["canonical_url"] == f"{base_url}/report.txt"

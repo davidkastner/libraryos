@@ -100,9 +100,14 @@ def _parser() -> argparse.ArgumentParser:
         default="{}",
         help="JSON object of operation arguments",
     )
-    commands.add_parser(
+    operations = commands.add_parser(
         "operations",
-        help="List every versioned operation and its machine-readable contract",
+        help="List versioned operations or inspect one machine-readable contract",
+    )
+    operations.add_argument(
+        "operation",
+        nargs="?",
+        help="Optional operation name, for example metadata.crossref.resolve",
     )
     return parser
 
@@ -319,9 +324,13 @@ def main(argv: list[str] | None = None) -> int:
             _write(invoke(arguments.operation, values))
             return 0
         if arguments.command == "operations":
-            from .operations import describe_operations
+            from .operations import describe_operations, operation_contract
 
-            _write(describe_operations())
+            _write(
+                operation_contract(arguments.operation)
+                if arguments.operation
+                else describe_operations()
+            )
             return 0
     except (SchemaError, StorageError) as error:
         return _error(error, operation)

@@ -50,9 +50,19 @@ def test_operation_contracts_describe_every_public_operation():
     assert create["arguments_schema"]["properties"]["identifiers"]["default"] is None
     assert create["effects"] == {"mutation": True, "network": False}
     assert create["required_capability"] == "library.maintain"
+    assert create["description"] == "Create an empty authoritative work bundle atomically."
     relations = operation_contract("relations.openalex.discover")
     assert relations["effects"] == {"mutation": False, "network": True}
     assert relations["required_capability"] == "library.read"
+    acquire = operation_contract("source.acquire")
+    actor = acquire["arguments_schema"]["properties"]["requested_by"]
+    assert actor["anyOf"][0]["properties"]["kind"]["enum"] == [
+        "human",
+        "agent",
+        "service",
+        "import",
+    ]
+    assert actor["anyOf"][0]["required"] == ["kind", "id"]
 
 
 def test_operation_arguments_are_validated_before_dispatch(tmp_path):

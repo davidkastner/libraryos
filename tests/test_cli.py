@@ -43,6 +43,11 @@ def test_cli_work_source_rebuild_search(tmp_path, capsys):
 def test_cli_exposes_every_operation_contract(capsys):
     assert main(["operations"]) == 0
     assert set(_output(capsys)["operations"]) == set(OPERATIONS)
+    assert main(["operations", "metadata.crossref.resolve"]) == 0
+    contract = _output(capsys)
+    assert contract["operation"] == "libraryos.metadata.crossref.resolve"
+    assert contract["description"]
+    assert contract["effects"] == {"mutation": True, "network": True}
 
 
 def test_generic_cli_call_reaches_public_operation(tmp_path, capsys):
