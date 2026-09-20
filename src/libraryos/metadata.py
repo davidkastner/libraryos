@@ -7,9 +7,15 @@ import uuid
 from pathlib import Path
 from typing import Any
 
-from .identity import identifier_key
+from .identity import identifier_key, normalize_identifier
 from .library import open_library, utc_now
-from .providers import CrossrefProvider, MetadataProvider, SourceDiscoveryProvider
+from .providers import (
+    CrossrefProvider,
+    MetadataProvider,
+    OpenAlexProvider,
+    RelationDiscoveryProvider,
+    SourceDiscoveryProvider,
+)
 from .schemas import validate_record
 from .storage import StorageError, atomic_json, exclusive_lock, read_json_record
 from .works import get_work, register_source_candidate
@@ -257,4 +263,60 @@ def discover_crossref(
             timeout=timeout,
             publisher_access=publisher_access,
         ),
+    )
+
+
+def discover_relations(
+    identifier: dict[str, Any],
+    *,
+    provider: RelationDiscoveryProvider,
+    directions: list[str],
+    limit: int = 25,
+) -> dict[str, Any]:
+    """Discover scholarly neighbors without persisting or assessing them."""
+
+    requested = normalize_identifier(identifier)
+    candidates = provider.discover(
+        requested,
+        directions=directions,
+        limit=limit,
+    )
+    return {
+        "seed_identifier": requested,
+        "provider": {"name": provider.name, "version": provider.version},
+        "directions": list(directions),
+        "candidates": [
+            {
+                "relation": candidate.relation,
+                "identifiers": candidate.identifiers,
+                "title": candidate.title,
+                "publication_year": candidate.publication_year,
+                "provider_work_id": candidate.provider_work_id,
+                "source_url": candidate.source_url,
+                "inspection_status": "not_inspected",
+                "scientific_support": "not_assessed",
+            }
+            for candidate in candidates
+        ],
+        "persisted": False,
+        "scientific_inspection": "not_assessed",
+        "scientific_support": "not_assessed",
+    }
+
+
+def discover_openalex_relations(
+    doi: str,
+    *,
+    directions: list[str] | None = None,
+    limit: int = 25,
+    email: str | None = None,
+    timeout: float = 30,
+) -> dict[str, Any]:
+    """Discover DOI-linked references and citations through OpenAlex."""
+
+    return discover_relations(
+        {"scheme": "doi", "value": doi},
+        provider=OpenAlexProvider(email=email, timeout=timeout),
+        directions=directions or ["references", "citations"],
+        limit=limit,
     )

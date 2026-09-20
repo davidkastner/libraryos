@@ -37,6 +37,25 @@ invoke("library.rebuild", {"library": library})
 matches = invoke("search", {"library": library, "query": "cryogenic"})
 ```
 
+## Discover backward and forward citation candidates
+
+Use the public, non-mutating OpenAlex relation operation for a DOI seed:
+
+```python
+neighbors = invoke(
+    "relations.openalex.discover",
+    {
+        "doi": "10.1000/example",
+        "directions": ["references", "citations"],
+        "limit": 25,
+    },
+)["result"]
+```
+
+Each result retains the relation direction, identifiers, provider work ID, and
+provider URL. Discovery does not add the candidate to the library, establish
+that anyone inspected it, or imply that it supports a scientific claim.
+
 Creating or finding a work does not mean its source has been inspected or that
 it supports a claim.
 
@@ -118,6 +137,11 @@ permits network acquisition; `derivative.prepare` permits generated files;
 - Acquisition proves possession and recorded identity evidence, not review.
 - Preparation creates navigational derivatives, not scientific conclusions.
 - Search results always carry `scientific_support: not_assessed`.
+- `search.prepared` accepts an optional `work_ids` array (at most 1000 IDs) to
+  search a curator-selected source set before widening to the whole library.
+  Results are deterministically ordered by full-text relevance and stable IDs.
+  Scoping and ranking improve navigation only; neither implies relevance,
+  inspection, or support.
 - A review identifies the exact source hashes and coverage a reviewer examined.
 - An assessment records a purpose-specific judgment in a collection.
 - An occurrence records an external structural reference and implies no support.

@@ -5,9 +5,11 @@ import pytest
 
 from libraryos import (
     CrossrefProvider,
+    OpenAlexProvider,
     StorageError,
     accept_metadata_assertion,
     create_work,
+    discover_relations,
     discover_sources,
     initialize_library,
     resolve_metadata,
@@ -168,3 +170,68 @@ def test_discovery_records_candidates_but_does_not_acquire(tmp_path):
         "https://publisher.example/article.pdf",
         "https://publisher.example/article",
     }
+
+
+def test_openalex_relation_discovery_is_non_mutating_and_provenanced():
+    responses = {
+        "https://api.openalex.org/works/https%3A%2F%2Fdoi.org%2F10.1234%2Fexample": {
+            "id": "https://openalex.org/W100",
+            "referenced_works": [
+                "https://openalex.org/W200",
+                "https://openalex.org/W300",
+            ],
+        },
+        "https://api.openalex.org/works?filter=openalex_id:W200|W300&per-page=2": {
+            "results": [
+                {
+                    "id": "https://openalex.org/W200",
+                    "doi": "https://doi.org/10.1000/REFERENCE",
+                    "display_name": "Earlier work",
+                    "publication_year": 2001,
+                }
+            ]
+        },
+        "https://api.openalex.org/works?filter=cites:W100&per-page=2": {
+            "results": [
+                {
+                    "id": "https://openalex.org/W400",
+                    "doi": "https://doi.org/10.1000/CITING",
+                    "display_name": "Later work",
+                    "publication_year": 2025,
+                }
+            ]
+        },
+    }
+
+    def transport(url, headers, timeout):
+        assert headers["Accept"] == "application/json"
+        assert timeout == 5
+        value = responses[url]
+        return value, json.dumps(value).encode()
+
+    result = discover_relations(
+        {"scheme": "doi", "value": "10.1234/example"},
+        provider=OpenAlexProvider(timeout=5, transport=transport),
+        directions=["references", "citations"],
+        limit=2,
+    )
+
+    assert result["provider"] == {"name": "openalex", "version": "api-v1"}
+    assert result["persisted"] is False
+    assert [item["relation"] for item in result["candidates"]] == [
+        "references",
+        "citations",
+    ]
+    assert result["candidates"][0]["identifiers"][0]["normalized"] == "10.1000/reference"
+    assert result["candidates"][1]["scientific_support"] == "not_assessed"
+
+
+def test_openalex_relation_discovery_rejects_unknown_direction():
+    provider = OpenAlexProvider(transport=lambda *_args: ({}, b"{}"))
+    with pytest.raises(StorageError) as caught:
+        discover_relations(
+            {"scheme": "doi", "value": "10.1234/example"},
+            provider=provider,
+            directions=["similar"],
+        )
+    assert caught.value.code == "relation_direction_invalid"

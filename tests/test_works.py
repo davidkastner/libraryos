@@ -1,5 +1,7 @@
 import json
 
+import pytest
+
 from libraryos import (
     create_work,
     import_source,
@@ -57,9 +59,54 @@ def test_work_source_and_rebuildable_catalog(tmp_path):
     assert hit["artifact_id"] == derivative["derivative"]["id"]
     assert hit["locator"]["type"] == "passage"
     assert hit["scientific_support"] == "not_assessed"
+    assert hit["work_scope"] == "library"
 
     (root / ".libraryos" / "index.sqlite").unlink()
     assert search_catalog(root, "report-7")[0]["id"] == work["id"]
+
+
+def test_prepared_search_can_be_scoped_to_explicit_works(tmp_path):
+    root = tmp_path / "library"
+    initialize_library(root)
+    works = []
+    for title in ("Relevant article", "Unrelated article"):
+        work = create_work(root, work_type="article", title=title)
+        source = tmp_path / f"{work['id']}.txt"
+        source.write_text("A shared catalytic oxyanion observation.\n")
+        imported = import_source(root, work["id"], source, role="full_text")
+        prepared = tmp_path / f"{work['id']}.md"
+        prepared.write_text("# Results\nA shared catalytic oxyanion observation.\n")
+        register_derivative(
+            root,
+            work["id"],
+            prepared,
+            role="agent_markdown",
+            input_sha256=[imported["source"]["sha256"]],
+            generator_name="fixture",
+            generator_version="1",
+            media_type="text/markdown",
+        )
+        works.append(work)
+    rebuild_catalog(root)
+
+    all_hits = search_prepared(root, "oxyanion")
+    scoped = search_prepared(root, "oxyanion", work_ids=[works[0]["id"], works[0]["id"]])
+
+    assert {row["work_id"] for row in all_hits} == {work["id"] for work in works}
+    assert [row["work_id"] for row in scoped] == [works[0]["id"]]
+    assert scoped[0]["work_scope"] == "explicit"
+    assert scoped[0]["relevance"] is not None
+    assert search_prepared(root, "oxyanion", work_ids=[]) == []
+
+
+def test_prepared_search_rejects_invalid_bounds(tmp_path):
+    root = tmp_path / "library"
+    initialize_library(root)
+
+    with pytest.raises(ValueError, match="Limit must be between"):
+        search_prepared(root, "anything", limit=0)
+    with pytest.raises(ValueError, match="work_ids"):
+        search_prepared(root, "anything", work_ids=[""])
 
 
 def test_extensions_round_trip_through_work_write(tmp_path):
