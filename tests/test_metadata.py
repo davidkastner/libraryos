@@ -78,6 +78,17 @@ def test_crossref_assertion_is_provenanced_and_requires_acceptance(tmp_path):
     resolved = resolve_metadata(root, work["id"], provider=provider)
     assertion = resolved["assertion"]
     assert resolved["accepted"] is False
+    assert resolved["next_actions"] == [
+        {
+            "operation": "metadata.assertion.accept",
+            "purpose": "Review and explicitly accept the resolved bibliographic metadata.",
+            "arguments": {
+                "library": str(root.resolve()),
+                "work_id": work["id"],
+                "assertion_id": assertion["id"],
+            },
+        }
+    ]
     assert assertion["status"] == "candidate"
     assert assertion["provider_version"] == "rest-api-v1"
     assert assertion["raw_response_sha256"] == hashlib.sha256(payload).hexdigest()
@@ -86,6 +97,13 @@ def test_crossref_assertion_is_provenanced_and_requires_acceptance(tmp_path):
 
     accepted = accept_metadata_assertion(root, work["id"], assertion["id"])
     assert accepted["accepted"] is True
+    assert accepted["next_actions"] == [
+        {
+            "operation": "source.crossref.discover",
+            "purpose": "Discover source candidates without retrieving bytes.",
+            "arguments": {"library": str(root.resolve()), "work_id": work["id"]},
+        }
+    ]
     from libraryos import get_work
 
     current = get_work(root, work["id"])
@@ -156,6 +174,15 @@ def test_discovery_records_candidates_but_does_not_acquire(tmp_path):
     assert result["acquired"] is False
     assert result["scientific_inspection"] == "not_assessed"
     assert len(result["candidates"]) == 2
+    assert len(result["next_actions"]) == 2
+    for candidate, action in zip(result["candidates"], result["next_actions"], strict=True):
+        assert action["operation"] == "source.acquire"
+        assert action["arguments"]["url"] == candidate["candidate"]["url"]
+        assert action["arguments"]["access"] == candidate["candidate"]["access"]
+        assert action["arguments"]["identity_evidence"] == {
+            "candidate_id": candidate["candidate"]["id"]
+        }
+        assert action["required_arguments"] == ["role"]
 
     from libraryos import get_work
 

@@ -54,6 +54,28 @@ def test_html_preparation_is_source_faithful_and_searchable(tmp_path):
     result = prepare_source(root, work["id"], source["id"])
     derivative = result["derivatives"][0]
     assert result["scientific_inspection"] == "not_performed"
+    assert result["next_actions"] == [
+        {
+            "operation": "search.prepared",
+            "purpose": (
+                "Search the prepared representation within this exact work; "
+                "search results do not establish scientific support."
+            ),
+            "arguments": {
+                "library": str(root.resolve()),
+                "query": "<search terms>",
+                "work_ids": [work["id"]],
+            },
+            "required_arguments": ["query"],
+        },
+        {
+            "operation": "read.resolve",
+            "purpose": (
+                "Resolve the best available reading representation for source inspection."
+            ),
+            "arguments": {"library": str(root.resolve()), "work_id": work["id"]},
+        },
+    ]
     assert derivative["role"] == "source_faithful_markdown"
     assert derivative["input_sha256"] == [source["sha256"]]
     assert derivative["locators"][0]["artifact_id"] == source["id"]
@@ -95,6 +117,44 @@ def test_xml_preparation_avoids_nested_text_duplication(tmp_path):
         result["derivatives"][0]["locators"]
     )
     assert len(result["derivatives"][0]["generator"]["configuration_sha256"]) == 64
+
+
+def test_bioc_xml_preparation_preserves_passages_and_offsets(tmp_path):
+    root = tmp_path / "library"
+    initialize_library(root)
+    work, source = _source(
+        root,
+        tmp_path,
+        name="article.bioc.xml",
+        media_type="application/xml",
+        content=(
+            '<?xml version="1.0"?><collection><document><id>42</id>'
+            '<passage><infon key="section_type">TITLE</infon>'
+            '<infon key="type">front</infon><offset>0</offset>'
+            "<text>BioC preparation fixture</text></passage>"
+            '<passage><infon key="section_type">RESULTS</infon>'
+            '<infon key="type">paragraph</infon><offset>25</offset>'
+            "<text>Asp233 shuttles the proton to solvent.</text></passage>"
+            '<passage><infon key="section_type">FIG</infon>'
+            '<infon key="type">section_caption</infon><offset>70</offset>'
+            "<text>Figure 6. Proposed catalytic mechanism.</text></passage>"
+            "</document></collection>"
+        ),
+    )
+    result = prepare_source(root, work["id"], source["id"])
+    derivative = result["derivatives"][0]
+    path = root / "works" / work["id"] / derivative["path"]
+    text = path.read_text()
+    assert "# BioC preparation fixture" in text
+    assert "## RESULTS" in text
+    assert "## FIG" in text
+    assert "Figure 6. Proposed catalytic mechanism." in text
+    assert text.count("Asp233 shuttles the proton to solvent.") == 1
+    assert {
+        "artifact_id": source["id"],
+        "type": "passage",
+        "value": "offset:25",
+    } in derivative["locators"]
 
 
 def test_plain_text_preparation_marks_unverified_identity(tmp_path):

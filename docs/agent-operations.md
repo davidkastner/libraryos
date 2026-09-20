@@ -8,12 +8,38 @@ querying SQLite.
 
 ```bash
 libraryos operations
+libraryos operations metadata.crossref.resolve
 libraryos call library.status \
   --arguments '{"library":"/path/to/private-library"}'
 ```
 
 Every response identifies its contract version and operation effects. Inspect
 the operation contract before requesting a capability or invoking a mutation.
+The optional operation name avoids loading the full catalog when an agent needs
+one command's description, argument schema, effects, and required capability.
+
+If `libraryos` is not on `PATH` in a source checkout, invoke
+`.venv/bin/libraryos` from that checkout. For repeated use, install the checkout
+as an editable tool with `uv tool install --editable /path/to/libraryos`; do not
+depend on shell aliases or startup-file changes that other agents cannot see.
+
+## Resolve, acquire, prepare, and inspect a work
+
+The successful results for these operations include structured `next_actions`
+with the identifiers already known at that stage:
+
+1. `metadata.crossref.resolve` stores an unaccepted assertion and points to
+   `metadata.assertion.accept`.
+2. `metadata.assertion.accept` points to `source.crossref.discover`.
+3. `source.crossref.discover` returns one `source.acquire` action per registered
+   candidate. The agent must still choose the source role and explicitly
+   authorize its access class.
+4. `source.acquire` points to `source.prepare` using the acquired source ID.
+5. `source.prepare` points to work-scoped `search.prepared` and `read.resolve`.
+
+These actions expose a mechanical workflow; they do not choose among source
+candidates, grant access, or establish that an acquired or prepared source was
+scientifically inspected.
 
 ## Domain-neutral Python example
 

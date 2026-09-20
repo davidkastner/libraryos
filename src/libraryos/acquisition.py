@@ -510,7 +510,25 @@ def acquire_url(
             provider=provider,
         )
         update_job(library, job["id"], status="succeeded", result=result)
-        return {**result, "job_id": job["id"]}
+        source = result["source"]
+        return {
+            **result,
+            "job_id": job["id"],
+            "next_actions": [
+                {
+                    "operation": "source.prepare",
+                    "purpose": (
+                        "Prepare searchable and visual navigation derivatives "
+                        "from the acquired immutable source."
+                    ),
+                    "arguments": {
+                        "library": str(Path(library).expanduser().resolve()),
+                        "work_id": work_id,
+                        "source_id": source["id"],
+                    },
+                }
+            ],
+        }
     except (OSError, StorageError) as error:
         code = getattr(error, "code", "acquisition_failed")
         if not isinstance(code, str):

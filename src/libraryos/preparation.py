@@ -109,6 +109,73 @@ def _xml_markdown(source: Path) -> tuple[str, list[dict[str, Any]]]:
     heading_tags = {"article-title": 1, "title": 2}
     block_tags = {"p", "abstract", "caption", "table-wrap", "ref"}
 
+    # BioC serializes article content as ordered passages rather than JATS
+    # paragraphs. Treat each passage as an atomic block so nested metadata does
+    # not duplicate its text, and retain the source character offsets that make
+    # BioC useful for evidence navigation.
+    if root.tag.rsplit("}", 1)[-1].casefold() == "collection":
+        passages = [
+            element
+            for element in root.iter()
+            if element.tag.rsplit("}", 1)[-1].casefold() == "passage"
+        ]
+        if passages:
+            current_section: str | None = None
+            for passage in passages:
+                infons = {
+                    child.attrib.get("key", ""): (child.text or "").strip()
+                    for child in passage
+                    if child.tag.rsplit("}", 1)[-1].casefold() == "infon"
+                }
+                text_node = next(
+                    (
+                        child
+                        for child in passage
+                        if child.tag.rsplit("}", 1)[-1].casefold() == "text"
+                    ),
+                    None,
+                )
+                text = (
+                    " ".join("".join(text_node.itertext()).split())
+                    if text_node is not None
+                    else ""
+                )
+                if not text:
+                    continue
+                passage_type = infons.get("type", "").casefold()
+                section = infons.get("section_type", "").strip()
+                if section and section != current_section and passage_type not in {
+                    "front",
+                    "title",
+                    "title_1",
+                    "title_2",
+                    "title_3",
+                }:
+                    parts.append(f"## {section}")
+                    locators.append({"type": "section", "value": section})
+                    current_section = section
+                if passage_type in {"front", "title"}:
+                    parts.append(f"# {text}")
+                elif re.fullmatch(r"title_[1-9][0-9]*", passage_type):
+                    level = min(6, 1 + int(passage_type.rsplit("_", 1)[-1]))
+                    parts.append(f"{'#' * level} {text}")
+                else:
+                    parts.append(text)
+                offset_node = next(
+                    (
+                        child
+                        for child in passage
+                        if child.tag.rsplit("}", 1)[-1].casefold() == "offset"
+                    ),
+                    None,
+                )
+                if offset_node is not None and (offset_node.text or "").strip().isdigit():
+                    locators.append(
+                        {"type": "passage", "value": f"offset:{int(offset_node.text)}"}
+                    )
+            if parts:
+                return "\n\n".join(parts) + "\n", locators
+
     def visit(element: ET.Element) -> None:
         tag = element.tag.rsplit("}", 1)[-1].casefold()
         if tag == "pb":
@@ -832,7 +899,34 @@ def prepare_source(
             provider=GENERATOR_NAME,
         )
         update_job(library, job["id"], status="succeeded", result=result)
-        return {**result, "job_id": job["id"]}
+        root = str(Path(library).expanduser().resolve())
+        return {
+            **result,
+            "job_id": job["id"],
+            "next_actions": [
+                {
+                    "operation": "search.prepared",
+                    "purpose": (
+                        "Search the prepared representation within this exact work; "
+                        "search results do not establish scientific support."
+                    ),
+                    "arguments": {
+                        "library": root,
+                        "query": "<search terms>",
+                        "work_ids": [work_id],
+                    },
+                    "required_arguments": ["query"],
+                },
+                {
+                    "operation": "read.resolve",
+                    "purpose": (
+                        "Resolve the best available reading representation for "
+                        "source inspection."
+                    ),
+                    "arguments": {"library": root, "work_id": work_id},
+                },
+            ],
+        }
     except (OSError, StorageError) as error:
         code = getattr(error, "code", "conversion_failure")
         if not isinstance(code, str):

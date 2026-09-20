@@ -93,6 +93,20 @@ from .works import (
 
 Operation = Callable[..., Any]
 
+_ACTOR_SCHEMA = {
+    "type": "object",
+    "additionalProperties": False,
+    "properties": {
+        "kind": {
+            "type": "string",
+            "enum": ["human", "agent", "service", "import"],
+        },
+        "id": {"type": "string", "minLength": 1},
+        "label": {"type": "string", "minLength": 1},
+    },
+    "required": ["kind", "id"],
+}
+
 
 @dataclass(frozen=True)
 class OperationDefinition:
@@ -322,7 +336,11 @@ def operation_contract(operation: str) -> dict[str, Any]:
     properties: dict[str, Any] = {}
     required: list[str] = []
     for name, parameter in signature.parameters.items():
-        properties[name] = _annotation_schema(hints.get(name, parameter.annotation))
+        properties[name] = (
+            {"anyOf": [_ACTOR_SCHEMA, {"type": "null"}]}
+            if name == "requested_by"
+            else _annotation_schema(hints.get(name, parameter.annotation))
+        )
         if parameter.default is inspect.Parameter.empty:
             required.append(name)
         else:
@@ -337,6 +355,7 @@ def operation_contract(operation: str) -> dict[str, Any]:
     return {
         "contract_version": 1,
         "operation": f"libraryos.{operation}",
+        "description": inspect.getdoc(definition.function) or "",
         "effects": {
             "mutation": definition.mutation,
             "network": definition.network,
