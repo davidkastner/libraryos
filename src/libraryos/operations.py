@@ -7,7 +7,7 @@ import types
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Union, get_args, get_origin, get_type_hints
+from typing import Any, Literal, Union, get_args, get_origin, get_type_hints
 
 from jsonschema import Draft202012Validator, validators
 
@@ -307,6 +307,8 @@ def _annotation_schema(annotation: Any) -> dict[str, Any]:
         return {"type": "number"}
     origin = get_origin(annotation)
     arguments = get_args(annotation)
+    if origin is Literal:
+        return {"enum": list(arguments)}
     if origin in {Union, types.UnionType}:
         alternatives: list[dict[str, Any]] = []
         for item in arguments:

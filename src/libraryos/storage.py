@@ -17,10 +17,20 @@ from .schemas import SchemaError, validate_record
 class StorageError(ValueError):
     """A stable storage or library-integrity error."""
 
-    def __init__(self, message: str, *, code: str, path: str | None = None) -> None:
+    def __init__(
+        self,
+        message: str,
+        *,
+        code: str,
+        path: str | None = None,
+        details: dict[str, Any] | None = None,
+        next_actions: list[dict[str, str]] | None = None,
+    ) -> None:
         super().__init__(message)
         self.code = code
         self.path = path
+        self.details = details
+        self.next_actions = next_actions
 
 
 @contextmanager

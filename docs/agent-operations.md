@@ -17,6 +17,10 @@ Every response identifies its contract version and operation effects. Inspect
 the operation contract before requesting a capability or invoking a mutation.
 The optional operation name avoids loading the full catalog when an agent needs
 one command's description, argument schema, effects, and required capability.
+Commands accept `--format json` (the unchanged default) or `--format text` for
+readable YAML without discarding result fields. Execution errors remain JSON.
+Use `operations OPERATION` for callable argument contracts and `schema NAME`
+for stored record schemas; these are distinct namespaces.
 
 If `libraryos` is not on `PATH` in a source checkout, invoke
 `.venv/bin/libraryos` from that checkout. For repeated use, install the checkout
@@ -84,6 +88,35 @@ that anyone inspected it, or imply that it supports a scientific claim.
 
 Creating or finding a work does not mean its source has been inspected or that
 it supports a claim.
+
+## Search prepared text
+
+Use literal mode for ordinary names, residue numbers, and punctuation:
+
+```bash
+libraryos search --library /path/to/private-library --full-text \
+  'Asp-102 protonated' --format text
+libraryos call search.prepared --arguments \
+  '{"library":"/path/to/private-library","query":"acetyl-CoA","query_mode":"literal"}'
+```
+
+Literal mode quotes each whitespace-separated searchable term and requires them
+all. Standalone punctuation such as `/` or `→` is omitted because it has no
+indexed token; all-punctuation queries are rejected. Attached punctuation such
+as `NAD+` remains in the effective expression, but the index tokenizer does not
+distinguish it from `NAD`. Punctuation is never
+interpreted as an FTS operator or column selector. For a curated Boolean query,
+use `--query-mode fts` or the `search.prepared` operation's existing FTS default:
+
+```bash
+libraryos search --library /path/to/private-library --full-text \
+  --query-mode fts '"ATP" OR "GTP"'
+```
+
+The CLI reports `query_mode` and `effective_query` even for zero hits. Repeat
+`--work-id` to scope CLI searches, or pass `work_ids` to `search.prepared`.
+Malformed FTS returns `search_query_invalid` with a literal-mode recovery
+action. It never silently changes the meaning of an explicit query.
 
 ## Synchronize references from an external document
 

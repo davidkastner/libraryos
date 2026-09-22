@@ -7,10 +7,10 @@ import os
 import sqlite3
 import tempfile
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 from .library import open_library
-from .storage import read_json_record
+from .storage import StorageError, read_json_record
 
 CATALOG_VERSION = 2
 
@@ -326,34 +326,80 @@ def search_catalog(library: str | Path, query: str, *, limit: int = 50) -> list[
     ]
 
 
+def prepared_query(query: str, query_mode: Literal["fts", "literal"] = "fts") -> str:
+    """Return the exact FTS expression; literal mode requires searchable input terms."""
+
+    if query_mode not in {"fts", "literal"}:
+        raise StorageError(
+            "query_mode must be fts or literal",
+            code="search_query_mode_invalid",
+            path="query_mode",
+        )
+    if not isinstance(query, str) or not query.strip():
+        raise StorageError(
+            "A non-empty full-text query is required",
+            code="search_query_invalid",
+            path="query",
+        )
+    if query_mode == "fts":
+        return query
+    terms = [token for token in query.split() if any(char.isalnum() for char in token)]
+    if not terms:
+        raise StorageError(
+            "A literal full-text query must contain a letter or number",
+            code="search_query_invalid",
+            path="query",
+        )
+    # Quote each input token, including any embedded quotes. FTS's tokenizer
+    # still normalizes punctuation, but it cannot interpret terms such as
+    # Asp-102, acetyl-CoA, or 2.7.1.1 as operators or column selectors.
+    # Standalone punctuation has no indexed token. Requiring an empty phrase
+    # would make otherwise searchable chemical text return no matches.
+    return " AND ".join('"' + token.replace('"', '""') + '"' for token in terms)
+
+
 def search_prepared(
     library: str | Path,
     query: str,
     *,
     limit: int = 50,
     work_ids: list[str] | None = None,
+    query_mode: Literal["fts", "literal"] = "fts",
 ) -> list[dict[str, Any]]:
-    """Navigate prepared text, optionally within explicit works, with no support claim."""
+    """Search prepared text using FTS syntax or literal terms, optionally within explicit works.
 
-    root, _ = open_library(library)
-    root, path = ensure_catalog(root)
+    The default preserves existing FTS expressions. Use query_mode="literal"
+    for ordinary names and text; whitespace-separated searchable terms are all
+    required. Standalone punctuation is omitted; attached punctuation is kept
+    in the expression but remains subject to the index tokenizer.
+    Search hits are navigation and never establish scientific support.
+    """
+
+    expression = prepared_query(query, query_mode)
     if not 1 <= limit <= 200:
-        raise ValueError("Limit must be between 1 and 200")
+        raise StorageError(
+            "Limit must be between 1 and 200", code="arguments_invalid", path="limit"
+        )
     if work_ids is not None:
         if (
             not isinstance(work_ids, list)
             or len(work_ids) > 1000
             or any(not isinstance(work_id, str) or not work_id.strip() for work_id in work_ids)
         ):
-            raise ValueError("work_ids must be an array of at most 1000 non-empty strings")
+            raise StorageError(
+                "work_ids must be an array of at most 1000 non-empty strings",
+                code="arguments_invalid", path="work_ids",
+            )
         work_ids = list(dict.fromkeys(work_ids))
-        if not work_ids:
-            return []
+    root, _ = open_library(library)
+    if work_ids == []:
+        return []
+    root, path = ensure_catalog(root)
     connection = sqlite3.connect(f"{path.resolve().as_uri()}?mode=ro", uri=True)
     connection.row_factory = sqlite3.Row
     try:
         predicate = "prepared_text MATCH ?"
-        parameters: list[Any] = [query]
+        parameters: list[Any] = [expression]
         if work_ids is not None:
             placeholders = ",".join("?" for _ in work_ids)
             predicate += f" AND work_id IN ({placeholders})"
@@ -372,7 +418,26 @@ def search_prepared(
             parameters,
         ).fetchall()
     except sqlite3.OperationalError as error:
-        raise ValueError(f"Invalid full-text query: {error}") from error
+        # Keep malformed FTS distinct from database/runtime failures, and never
+        # silently replace a caller's explicit Boolean expression.
+        reason = str(error)
+        query_error = any(
+            marker in reason
+            for marker in ("fts5:", "no such column:", "unterminated string", "malformed MATCH")
+        )
+        raise StorageError(
+            f"Invalid full-text query: {reason}" if query_error else f"Full-text search failed: {reason}",
+            code="search_query_invalid" if query_error else "search_failed",
+            path="query" if query_error else str(path),
+            details={"query": query, "query_mode": query_mode, "effective_query": expression},
+            next_actions=[
+                {
+                    "action": "use_literal_terms",
+                    "operation": "search.prepared",
+                    "description": "Set query_mode to literal for ordinary names or text; retain fts for Boolean expressions.",
+                }
+            ] if query_error else None,
+        ) from error
     finally:
         connection.close()
     return [

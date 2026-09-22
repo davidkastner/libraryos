@@ -5,9 +5,12 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+from functools import partial
+
+import yaml
 
 from . import __version__
-from .catalog import rebuild_catalog, search_catalog
+from .catalog import prepared_query, rebuild_catalog, search_catalog, search_prepared
 from .legacy import audit_legacy_library
 from .library import initialize_library, open_library, validate_library
 from .schemas import SchemaError, available_schemas, load_record, load_schema, validate_record
@@ -24,8 +27,7 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
     commands = parser.add_subparsers(dest="command", required=True)
 
-    schemas = commands.add_parser("schemas", help="List packaged contract schemas")
-    schemas.add_argument("--format", choices=("json", "text"), default="json")
+    commands.add_parser("schemas", help="List packaged contract schemas")
 
     schema = commands.add_parser("schema", help="Print one packaged JSON Schema")
     schema.add_argument("name")
@@ -81,9 +83,15 @@ def _parser() -> argparse.ArgumentParser:
     rebuild = commands.add_parser("rebuild", help="Rebuild disposable indexes")
     rebuild.add_argument("--library", required=True)
 
-    search = commands.add_parser("search", help="Search normalized work metadata")
+    search = commands.add_parser("search", help="Search work metadata or prepared full text")
     search.add_argument("--library", required=True)
     search.add_argument("--limit", type=int, default=50)
+    search.add_argument("--full-text", action="store_true", help="Search prepared text instead of metadata")
+    search.add_argument(
+        "--query-mode", choices=("literal", "fts"), default=None,
+        help="Full-text interpretation (default: literal terms); fts preserves explicit Boolean syntax",
+    )
+    search.add_argument("--work-id", action="append", dest="work_ids", help="Restrict full-text search to this work; repeatable")
     search.add_argument("query")
 
     serve_command = commands.add_parser("serve", help="Run the token-protected local API")
@@ -109,23 +117,40 @@ def _parser() -> argparse.ArgumentParser:
         nargs="?",
         help="Optional operation name, for example metadata.crossref.resolve",
     )
+    parser.add_argument("--format", choices=("json", "text"), default="json", help="Result presentation (default: json)")
+    for command in commands.choices.values():
+        if command is serve_command:
+            continue
+        command.add_argument(
+            "--format", choices=("json", "text"), default=argparse.SUPPRESS,
+            help="Result presentation (default: json); execution errors remain JSON",
+        )
     return parser
 
 
-def _write(value: object) -> None:
+def _write(value: object, *, output_format: str = "json") -> None:
+    if output_format == "text":
+        sys.stdout.write(yaml.safe_dump(value, allow_unicode=True, sort_keys=False))
+        return
     json.dump(value, sys.stdout, indent=2, ensure_ascii=False, sort_keys=True)
     sys.stdout.write("\n")
 
 
 def _error(error: SchemaError | StorageError, operation: str) -> int:
+    detail = {
+        "code": error.code,
+        "message": str(error),
+        "path": error.path or None,
+    }
+    if isinstance(error, StorageError):
+        if error.details is not None:
+            detail["details"] = error.details
+        if error.next_actions is not None:
+            detail["next_actions"] = error.next_actions
     _write(
         {
             "contract_version": 1,
-            "error": {
-                "code": error.code,
-                "message": str(error),
-                "path": error.path or None,
-            },
+            "error": detail,
             "ok": False,
             "operation": operation,
         }
@@ -133,7 +158,7 @@ def _error(error: SchemaError | StorageError, operation: str) -> int:
     return 2
 
 
-def _result(operation: str, result: object, *, mutation: bool) -> None:
+def _result(operation: str, result: object, *, mutation: bool, output_format: str = "json") -> None:
     _write(
         {
             "contract_version": 1,
@@ -141,7 +166,8 @@ def _result(operation: str, result: object, *, mutation: bool) -> None:
             "ok": True,
             "operation": operation,
             "result": result,
-        }
+        },
+        output_format=output_format,
     )
 
 
@@ -161,6 +187,8 @@ def _identifiers(values: list[str]) -> list[dict[str, str]]:
 
 def main(argv: list[str] | None = None) -> int:
     arguments = _parser().parse_args(argv)
+    write = partial(_write, output_format=arguments.format)
+    write_result = partial(_result, output_format=arguments.format)
     operation = "libraryos.cli"
     try:
         if arguments.command == "schemas":
@@ -169,17 +197,17 @@ def main(argv: list[str] | None = None) -> int:
             if arguments.format == "text":
                 sys.stdout.write("\n".join(names) + "\n")
             else:
-                _write({"contract_version": 1, "ok": True, "schemas": list(names)})
+                write({"contract_version": 1, "ok": True, "schemas": list(names)})
             return 0
         if arguments.command == "schema":
             operation = "libraryos.schema.show"
-            _write(load_schema(arguments.name))
+            write(load_schema(arguments.name))
             return 0
         if arguments.command == "validate-record":
             operation = "libraryos.schema.validate"
             record = load_record(arguments.path)
             validate_record(record, arguments.schema)
-            _write(
+            write(
                 {
                     "contract_version": 1,
                     "ok": True,
@@ -196,7 +224,7 @@ def main(argv: list[str] | None = None) -> int:
                 title=arguments.title,
                 description=arguments.description,
             )
-            _write(
+            write(
                 {
                     "contract_version": 1,
                     "effects": {"mutation": True, "network": False},
@@ -209,7 +237,7 @@ def main(argv: list[str] | None = None) -> int:
         if arguments.command == "status":
             operation = "libraryos.library.status"
             root, descriptor = open_library(arguments.library)
-            _write(
+            write(
                 {
                     "contract_version": 1,
                     "effects": {"mutation": False, "network": False},
@@ -225,7 +253,7 @@ def main(argv: list[str] | None = None) -> int:
                 arguments.library,
                 verify_hashes=not arguments.skip_hashes,
             )
-            _write(
+            write(
                 {
                     "contract_version": 1,
                     "effects": {"mutation": False, "network": False},
@@ -241,7 +269,7 @@ def main(argv: list[str] | None = None) -> int:
                 arguments.library,
                 verify_hashes=not arguments.skip_hashes,
             )
-            _write(
+            write(
                 {
                     "contract_version": 1,
                     "effects": {"mutation": False, "network": False},
@@ -259,15 +287,15 @@ def main(argv: list[str] | None = None) -> int:
                 title=arguments.title,
                 identifiers=_identifiers(arguments.identifier),
             )
-            _result(operation, result, mutation=True)
+            write_result(operation, result, mutation=True)
             return 0
         if arguments.command == "work-list":
             operation = "libraryos.work.list"
-            _result(operation, {"works": list_works(arguments.library)}, mutation=False)
+            write_result(operation, {"works": list_works(arguments.library)}, mutation=False)
             return 0
         if arguments.command == "work-show":
             operation = "libraryos.work.show"
-            _result(operation, get_work(arguments.library, arguments.work_id), mutation=False)
+            write_result(operation, get_work(arguments.library, arguments.work_id), mutation=False)
             return 0
         if arguments.command == "source-import":
             operation = "libraryos.source.import"
@@ -280,15 +308,39 @@ def main(argv: list[str] | None = None) -> int:
                 access=arguments.access,
                 identity_status=arguments.identity_status,
             )
-            _result(operation, result, mutation=result["created"])
+            write_result(operation, result, mutation=result["created"])
             return 0
         if arguments.command == "rebuild":
             operation = "libraryos.library.rebuild"
-            _result(operation, rebuild_catalog(arguments.library), mutation=True)
+            write_result(operation, rebuild_catalog(arguments.library), mutation=True)
             return 0
         if arguments.command == "search":
             operation = "libraryos.search"
-            _result(
+            if arguments.full_text:
+                query_mode = arguments.query_mode or "literal"
+                operation = "libraryos.search.prepared"
+                write_result(
+                    operation,
+                    {
+                        "query": arguments.query,
+                        "query_mode": query_mode,
+                        "effective_query": prepared_query(arguments.query, query_mode),
+                        "work_ids": arguments.work_ids,
+                        "scientific_support": "not_assessed",
+                        "results": search_prepared(
+                            arguments.library, arguments.query, limit=arguments.limit,
+                            work_ids=arguments.work_ids, query_mode=query_mode,
+                        ),
+                    },
+                    mutation=False,
+                )
+                return 0
+            if arguments.query_mode is not None or arguments.work_ids is not None:
+                raise StorageError(
+                    "--query-mode and --work-id require --full-text",
+                    code="arguments_invalid",
+                )
+            write_result(
                 operation,
                 {"query": arguments.query, "results": search_catalog(
                     arguments.library, arguments.query, limit=arguments.limit
@@ -321,12 +373,12 @@ def main(argv: list[str] | None = None) -> int:
                     code="arguments_invalid",
                 )
             operation = f"libraryos.{arguments.operation}"
-            _write(invoke(arguments.operation, values))
+            write(invoke(arguments.operation, values))
             return 0
         if arguments.command == "operations":
             from .operations import describe_operations, operation_contract
 
-            _write(
+            write(
                 operation_contract(arguments.operation)
                 if arguments.operation
                 else describe_operations()

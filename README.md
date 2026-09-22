@@ -115,7 +115,27 @@ libraryos search --library /path/to/private-library example
 libraryos validate --library /path/to/private-library
 ```
 
-Commands emit canonical JSON by default. The Python entry point for all client
+Commands emit canonical JSON by default. Add `--format text` for a readable YAML
+presentation or `--format json` explicitly; execution errors remain structured
+JSON. Search metadata as above, or prepared full text with literal terms:
+
+```bash
+libraryos search --library /path/to/private-library --full-text 'Asp-102 protonated'
+libraryos search --library /path/to/private-library --full-text \
+  --query-mode fts '"ATP" OR "GTP"'
+```
+
+The full-text CLI reports its query interpretation even when it returns no hits.
+Repeat `--work-id` to restrict it to selected works. Literal mode requires every
+whitespace-separated searchable term and safely handles chemical punctuation;
+standalone punctuation such as `/` or `→` is omitted. Attached punctuation
+such as `NAD+` is retained in the expression, although the index tokenizer
+does not distinguish it from `NAD`. Explicit
+`fts` mode preserves SQLite FTS5 expressions. The public `search.prepared`
+operation retains its existing FTS default and accepts `query_mode: literal`
+for ordinary names or text.
+
+The Python entry point for all client
 operations is `libraryos.operations.invoke`. Start the local API with:
 
 ```bash
