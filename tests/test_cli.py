@@ -1,5 +1,8 @@
 import json
 
+import pytest
+import yaml
+
 from libraryos import initialize_library
 from libraryos.cli import main
 from libraryos.operations import OPERATIONS
@@ -64,3 +67,37 @@ def test_generic_cli_call_reaches_public_operation(tmp_path, capsys):
     payload = _output(capsys)
     assert payload["operation"] == "libraryos.library.status"
     assert payload["result"]["descriptor"]["id"]
+
+
+@pytest.mark.parametrize("output_format", ["json", "text"])
+@pytest.mark.parametrize("before_command", [False, True])
+def test_format_supported_for_discovery_and_call(tmp_path, capsys, output_format, before_command):
+    root = tmp_path / "library"
+    initialize_library(root)
+    for args in (
+        ["operations", "search.prepared"],
+        ["call", "library.status", "--arguments", json.dumps({"library": str(root)})],
+        ["status", "--library", str(root)],
+        ["schema", "work-v1"],
+    ):
+        format_args = ["--format", output_format]
+        command = [*format_args, *args] if before_command else [*args, *format_args]
+        assert main(command) == 0
+        output = capsys.readouterr().out
+        payload = json.loads(output) if output_format == "json" else yaml.safe_load(output)
+        assert isinstance(payload, dict)
+        if args[0] == "operations":
+            assert payload["operation"] == "libraryos.search.prepared"
+        elif args[0] == "schema":
+            assert payload["$id"].endswith("/work/v1")
+        else:
+            assert payload["result"]["descriptor"]["id"]
+
+
+def test_explicit_json_default_and_text_preserve_complete_operation_result(capsys):
+    assert main(["operations"]) == 0
+    default_output = capsys.readouterr().out
+    assert main(["operations", "--format", "json"]) == 0
+    assert capsys.readouterr().out == default_output
+    assert main(["operations", "--format", "text"]) == 0
+    assert yaml.safe_load(capsys.readouterr().out) == json.loads(default_output)

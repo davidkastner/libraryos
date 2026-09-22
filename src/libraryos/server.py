@@ -193,6 +193,16 @@ def make_handler(
                             "code": getattr(error, "code", "arguments_invalid"),
                             "message": str(error),
                             "path": getattr(error, "path", None),
+                            **(
+                                {"details": error.details}
+                                if getattr(error, "details", None) is not None
+                                else {}
+                            ),
+                            **(
+                                {"next_actions": error.next_actions}
+                                if getattr(error, "next_actions", None) is not None
+                                else {}
+                            ),
                         },
                     },
                 )
