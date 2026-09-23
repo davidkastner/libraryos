@@ -65,7 +65,16 @@ from .providers import (
     SourceCandidateResult,
     SourceDiscoveryProvider,
 )
-from .reading import resolve_read, resolve_reads
+from .reading import (
+    list_figures,
+    list_supplements,
+    read_artifact,
+    read_pages,
+    resolve_read,
+    resolve_reads,
+    search_passages,
+    source_receipt,
+)
 from .records import (
     archive_collection,
     archive_collection_preview,
@@ -138,6 +147,8 @@ __all__ = [
     "initialize_library",
     "list_collections",
     "list_jobs",
+    "list_figures",
+    "list_supplements",
     "list_legacy_works",
     "list_records",
     "list_works",
@@ -150,7 +161,9 @@ __all__ = [
     "preview_schema_migration",
     "prepare_source",
     "put_external_collection",
+    "read_artifact",
     "read_collection_file",
+    "read_pages",
     "revalidate_external_collection",
     "reconcile_jobs",
     "rebuild_catalog",
@@ -163,6 +176,8 @@ __all__ = [
     "resolve_metadata",
     "resolve_read",
     "resolve_reads",
+    "search_passages",
+    "source_receipt",
     "resolve_work_identifiers",
     "restore_collection",
     "restore_staged_removal",

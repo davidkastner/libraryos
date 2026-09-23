@@ -59,7 +59,17 @@ from .migrations import (
 )
 from .preparation import prepare_source
 from .privacy import scan_privacy
-from .reading import open_read, resolve_read, resolve_reads
+from .reading import (
+    list_figures,
+    list_supplements,
+    open_read,
+    read_artifact,
+    read_pages,
+    resolve_read,
+    resolve_reads,
+    search_passages,
+    source_receipt,
+)
 from .records import (
     archive_collection,
     archive_collection_preview,
@@ -198,6 +208,12 @@ OPERATIONS: dict[str, OperationDefinition] = {
     "read.resolve": OperationDefinition(resolve_read, False, False, "library.read"),
     "read.resolve_many": OperationDefinition(resolve_reads, False, False, "library.read"),
     "read.open": OperationDefinition(open_read, False, False, "library.read"),
+    "read.pages": OperationDefinition(read_pages, False, False, "library.read"),
+    "read.search_passages": OperationDefinition(search_passages, False, False, "library.read"),
+    "read.figures": OperationDefinition(list_figures, False, False, "library.read"),
+    "read.supplements": OperationDefinition(list_supplements, False, False, "library.read"),
+    "read.artifact": OperationDefinition(read_artifact, False, False, "library.read"),
+    "read.receipt": OperationDefinition(source_receipt, False, False, "library.read"),
     "collection.create": OperationDefinition(
         create_collection, True, False, "library.maintain"
     ),
