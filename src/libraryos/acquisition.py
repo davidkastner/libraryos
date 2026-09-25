@@ -12,7 +12,7 @@ import urllib.parse
 import urllib.request
 import uuid
 from pathlib import Path
-from typing import Any
+from typing import Any, NotRequired, TypedDict
 
 from .identity import identifier_key, normalize_identifier
 from .jobs import append_attempt, append_exception, create_job, update_job
@@ -48,7 +48,23 @@ _REJECTION_MARKERS = {
         b"enable javascript and cookies",
         b"cloudflare ray id",
     ),
+    "download_interstitial": (
+        b"preparing to download",
+        b"your download will begin",
+        b"download is being prepared",
+        b"proof of work",
+    ),
 }
+
+
+class IdentityEvidence(TypedDict, total=False):
+    """Documented evidence that acquired bytes belong to the target work."""
+
+    method: NotRequired[str]
+    expected_sha256: NotRequired[str]
+    identifiers: NotRequired[list[dict[str, str]]]
+    title: NotRequired[str]
+    candidate_id: NotRequired[str]
 
 
 def sanitize_url(url: str) -> str:
@@ -90,6 +106,16 @@ def _validate_identity_evidence(
         raise StorageError(
             "Identity evidence contains unsupported fields",
             code="identity_evidence_invalid",
+            details={"allowed_fields": sorted(allowed)},
+            next_actions=[
+                {
+                    "action": "use_registered_candidate",
+                    "description": (
+                        "Supply candidate_id from source candidate discovery, or "
+                        "provide method plus matching identifiers, title, or expected_sha256."
+                    ),
+                }
+            ],
         )
     candidate_id = evidence.get("candidate_id")
     if candidate_id is not None and (
@@ -232,12 +258,13 @@ def _inspect_response(path: Path, declared_media_type: str) -> tuple[str, str | 
         or (declared_is_xml and sniffed == "application/xml")
         or (declared.startswith("text/") and sniffed == "text/plain")
     )
-    if not compatible:
-        return sniffed, "type_mismatch"
     if sniffed == "text/html":
         for code, markers in _REJECTION_MARKERS.items():
             if any(marker in sample for marker in markers):
                 return sniffed, code
+    if not compatible:
+        return sniffed, "type_mismatch"
+    if sniffed == "text/html":
         if (
             b"<abstract" in sample
             or b'class="abstract' in sample
@@ -330,7 +357,7 @@ def acquire_url(
     role: str,
     access: str,
     allowed_access: list[str],
-    identity_evidence: dict[str, Any] | None = None,
+    identity_evidence: IdentityEvidence | None = None,
     version: str = "unknown",
     expected_media_type: str | None = None,
     max_bytes: int = 100_000_000,
@@ -462,7 +489,11 @@ def acquire_url(
                 path=safe_url,
             )
         media_type, rejection = _inspect_response(temporary, declared_media_type)
-        if expected_media_type and media_type != expected_media_type:
+        if (
+            rejection is None
+            and expected_media_type
+            and media_type != expected_media_type
+        ):
             rejection = "type_mismatch"
         if rejection is None and not _identity_matches(
             temporary,
@@ -485,6 +516,28 @@ def acquire_url(
                 "Retrieved bytes were quarantined and not assigned to the work",
                 code=rejection,
                 path=quarantine["id"],
+                details={
+                    "quarantine_id": quarantine["id"],
+                    "detected_media_type": media_type,
+                    "expected_media_type": expected_media_type,
+                    "canonical_url": response_url,
+                },
+                next_actions=[
+                    {
+                        "action": "try_registered_alternate_source",
+                        "description": (
+                            "Use source discovery to choose another identity-verified "
+                            "source candidate for this work."
+                        ),
+                    },
+                    {
+                        "action": "import_authorized_source",
+                        "description": (
+                            "After lawful browser or repository retrieval, use "
+                            "source.import to preserve the downloaded bytes."
+                        ),
+                    },
+                ],
             )
         suffix = _suffix_for_media_type(media_type, fallback="")
         named = temporary.with_suffix(suffix)

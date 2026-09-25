@@ -120,6 +120,38 @@ def test_non_candidate_identity_requires_method_before_network(tmp_path, source_
     assert list_jobs(root) == []
 
 
+def test_identity_evidence_error_exposes_documented_recovery(tmp_path, source_server):
+    base_url, routes = source_server
+    routes["/report.txt"] = (200, "text/plain", b"Remote report\n")
+    root = tmp_path / "library"
+    initialize_library(root)
+    work = create_work(root, work_type="report", title="Remote report")
+
+    with pytest.raises(StorageError) as caught:
+        acquire_url(
+            root,
+            work["id"],
+            f"{base_url}/report.txt",
+            role="full_text",
+            access="open_access",
+            allowed_access=["open_access"],
+            identity_evidence={"doi": "10.1000/example"},
+        )
+
+    assert caught.value.code == "identity_evidence_invalid"
+    assert caught.value.details == {
+        "allowed_fields": [
+            "candidate_id",
+            "expected_sha256",
+            "identifiers",
+            "method",
+            "title",
+        ]
+    }
+    assert caught.value.next_actions[0]["action"] == "use_registered_candidate"
+    assert list_jobs(root) == []
+
+
 def test_candidate_only_identity_rejects_unknown_candidate_before_network(
     tmp_path,
     source_server,
@@ -250,6 +282,12 @@ def test_xml_suffix_media_type_is_accepted_as_xml(tmp_path, source_server):
             "bot_challenge",
         ),
         (
+            "/interstitial.pdf",
+            "application/pdf",
+            b"<html><body>Preparing to download. Proof of work is required.</body></html>",
+            "download_interstitial",
+        ),
+        (
             "/login",
             "text/html",
             b"<html><body>Institutional login required to access this article</body></html>",
@@ -303,6 +341,8 @@ def test_rejected_bytes_are_quarantined_not_attached(
     assert job["status"] == "failed"
     assert job["result"]["quarantine_id"] == record["id"]
     assert job["exceptions"][0]["category"] == expected_code
+    assert caught.value.details["detected_media_type"] == record["media_type"]
+    assert caught.value.next_actions[0]["action"] == "try_registered_alternate_source"
 
 
 def test_unmatched_identity_is_quarantined(tmp_path, source_server):

@@ -3,6 +3,8 @@ import sqlite3
 import threading
 import urllib.request
 
+import pytest
+
 from libraryos import (
     create_collection,
     create_work,
@@ -12,6 +14,7 @@ from libraryos import (
     set_collection_membership,
 )
 from libraryos.server import create_server
+from libraryos.storage import StorageError
 from libraryos.works import query_works
 
 
@@ -102,6 +105,63 @@ def test_work_query_uses_catalog_instead_of_scanning_manifests(tmp_path, monkeyp
     monkeypatch.setattr("libraryos.works.list_works", fail_if_scanned)
     assert query_works(root, query="indexed")["items"][0]["id"] == work["id"]
     assert query_works(root, query="%")["total"] == 0
+
+
+def test_work_query_normalizes_identifier_forms(tmp_path):
+    root = tmp_path / "library"
+    initialize_library(root)
+    work = create_work(
+        root,
+        work_type="article",
+        title="Mixed Case Mechanism",
+        identifiers=[
+            {"scheme": "doi", "value": "10.1000/MeCh"},
+            {"scheme": "pmid", "value": "12345"},
+            {"scheme": "pmcid", "value": "PMC67890"},
+        ],
+    )
+
+    for query in (
+        "HTTPS://DOI.ORG/10.1000/MECH",
+        "pmid:12345",
+        "pmc67890",
+        "mixed case mechanism",
+    ):
+        result = query_works(root, query=query)
+        assert [item["id"] for item in result["items"]] == [work["id"]]
+
+
+def test_work_query_rebuilds_catalog_when_authoritative_inventory_is_newer(tmp_path):
+    root = tmp_path / "library"
+    initialize_library(root)
+    create_work(root, work_type="article", title="Initially indexed")
+    assert query_works(root)["total"] == 1
+
+    second = create_work(root, work_type="article", title="Added after catalog build")
+    with sqlite3.connect(root / ".libraryos" / "index.sqlite") as connection:
+        connection.execute("DELETE FROM works WHERE id = ?", (second["id"],))
+    result = query_works(root, query="Added after catalog build")
+
+    assert [item["id"] for item in result["items"]] == [second["id"]]
+
+
+def test_work_query_invalid_enums_report_allowed_values(tmp_path):
+    root = tmp_path / "library"
+    initialize_library(root)
+
+    with pytest.raises(StorageError) as captured:
+        query_works(root, sort="relevance")
+
+    assert captured.value.code == "query_sort_invalid"
+    assert captured.value.details == {
+        "allowed_values": ["recent", "title", "year_desc"]
+    }
+    assert captured.value.next_actions == [
+        {
+            "action": "choose_allowed_value",
+            "description": "Use one of: recent, title, year_desc",
+        }
+    ]
 
 
 def test_catalog_stays_current_after_work_and_source_mutations(tmp_path):

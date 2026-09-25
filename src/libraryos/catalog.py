@@ -258,7 +258,15 @@ def ensure_catalog(library: str | Path) -> tuple[Path, Path]:
     if not rebuild:
         try:
             with sqlite3.connect(f"{path.resolve().as_uri()}?mode=ro", uri=True) as connection:
-                rebuild = connection.execute("PRAGMA user_version").fetchone()[0] != CATALOG_VERSION
+                version = connection.execute("PRAGMA user_version").fetchone()[0]
+                indexed_works = connection.execute("SELECT count(*) FROM works").fetchone()[0]
+                authoritative_works = sum(
+                    1 for _ in (root / "works").glob("*/manifest.json")
+                )
+                rebuild = (
+                    version != CATALOG_VERSION
+                    or indexed_works != authoritative_works
+                )
         except sqlite3.DatabaseError:
             rebuild = True
     if rebuild:

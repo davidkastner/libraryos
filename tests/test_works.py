@@ -65,6 +65,50 @@ def test_work_source_and_rebuildable_catalog(tmp_path):
     assert search_catalog(root, "report-7")[0]["id"] == work["id"]
 
 
+def test_source_import_repairs_missing_managed_source_directory(tmp_path):
+    root = tmp_path / "library"
+    initialize_library(root)
+    work = create_work(root, work_type="article", title="Migrated article")
+    source_directory = root / "works" / work["id"] / "source"
+    source_directory.rmdir()
+    supplied = tmp_path / "article.html"
+    supplied.write_text("<html><body>authoritative source</body></html>")
+
+    result = import_source(root, work["id"], supplied, role="repository_html")
+
+    assert result["created"] is True
+    assert (root / "works" / work["id"] / result["source"]["path"]).is_file()
+    assert validate_library(root)["valid"] is True
+
+
+def test_derivative_registration_repairs_missing_managed_directory(tmp_path):
+    root = tmp_path / "library"
+    initialize_library(root)
+    work = create_work(root, work_type="article", title="Migrated article")
+    supplied = tmp_path / "article.html"
+    supplied.write_text("<html><body>authoritative source</body></html>")
+    source = import_source(root, work["id"], supplied, role="repository_html")["source"]
+    derivative_directory = root / "works" / work["id"] / "derived"
+    derivative_directory.rmdir()
+    prepared = tmp_path / "prepared.md"
+    prepared.write_text("# Prepared article\n")
+
+    result = register_derivative(
+        root,
+        work["id"],
+        prepared,
+        role="agent_markdown",
+        input_sha256=[source["sha256"]],
+        generator_name="fixture",
+        generator_version="1",
+        media_type="text/markdown",
+    )
+
+    assert result["created"] is True
+    assert (root / "works" / work["id"] / result["derivative"]["path"]).is_file()
+    assert validate_library(root)["valid"] is True
+
+
 def test_prepared_search_can_be_scoped_to_explicit_works(tmp_path):
     root = tmp_path / "library"
     initialize_library(root)

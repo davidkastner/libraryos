@@ -232,13 +232,33 @@ def query_works(
         raise StorageError("Limit must be between 1 and 200", code="query_limit_invalid")
     if offset < 0:
         raise StorageError("Offset cannot be negative", code="query_offset_invalid")
-    if sort not in {"recent", "title", "year_desc"}:
-        raise StorageError("Unknown work sort", code="query_sort_invalid", path=sort)
-    if availability not in {"all", "local_pdf", "needs_source"}:
+    allowed_sorts = ["recent", "title", "year_desc"]
+    if sort not in allowed_sorts:
+        raise StorageError(
+            "Unknown work sort",
+            code="query_sort_invalid",
+            path=sort,
+            details={"allowed_values": allowed_sorts},
+            next_actions=[
+                {
+                    "action": "choose_allowed_value",
+                    "description": f"Use one of: {', '.join(allowed_sorts)}",
+                }
+            ],
+        )
+    allowed_availability = ["all", "local_pdf", "needs_source"]
+    if availability not in allowed_availability:
         raise StorageError(
             "Unknown availability filter",
             code="query_availability_invalid",
             path=availability,
+            details={"allowed_values": allowed_availability},
+            next_actions=[
+                {
+                    "action": "choose_allowed_value",
+                    "description": f"Use one of: {', '.join(allowed_availability)}",
+                }
+            ],
         )
 
     import json
@@ -263,8 +283,27 @@ def query_works(
         parameters.append(collection_id)
     normalized_query = query.casefold().strip()
     if normalized_query:
-        where.append("instr(w.search_text, ?) > 0")
-        parameters.append(normalized_query)
+        identifier_queries = {normalized_query}
+        for scheme in ("doi", "pmid", "pmcid"):
+            try:
+                normalized = normalize_identifiers(
+                    [{"scheme": scheme, "value": query}]
+                )[0]["normalized"]
+            except StorageError:
+                continue
+            identifier_queries.add(str(normalized).casefold())
+        placeholders = ",".join("?" for _ in identifier_queries)
+        where.append(
+            "("
+            "instr(w.search_text, ?) > 0 "
+            "OR EXISTS ("
+            "SELECT 1 FROM identifiers qi "
+            "WHERE qi.work_id = w.id "
+            f"AND lower(coalesce(qi.normalized, qi.value)) IN ({placeholders})"
+            ")"
+            ")"
+        )
+        parameters.extend([normalized_query, *sorted(identifier_queries)])
     if work_type is not None:
         where.append("w.type = ?")
         parameters.append(work_type)
@@ -483,6 +522,7 @@ def import_source(
         # Validate all metadata before any source bytes enter the library.
         validate_record(updated)
 
+        destination.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
         descriptor, temporary_name = tempfile.mkstemp(
             prefix=".source-", dir=destination.parent
         )
@@ -612,6 +652,7 @@ def register_derivative(
         }
         validate_record(updated)
 
+        destination.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
         descriptor, temporary_name = tempfile.mkstemp(
             prefix=".derivative-", dir=destination.parent
         )

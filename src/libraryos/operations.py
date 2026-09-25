@@ -7,7 +7,7 @@ import types
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Literal, Union, get_args, get_origin, get_type_hints
+from typing import Any, Literal, Union, get_args, get_origin, get_type_hints, is_typeddict
 
 from jsonschema import Draft202012Validator, validators
 
@@ -321,6 +321,17 @@ def _annotation_schema(annotation: Any) -> dict[str, Any]:
         return {"type": "integer"}
     if annotation is float:
         return {"type": "number"}
+    if is_typeddict(annotation):
+        hints = get_type_hints(annotation)
+        return {
+            "type": "object",
+            "additionalProperties": False,
+            "properties": {
+                name: _annotation_schema(field_annotation)
+                for name, field_annotation in hints.items()
+            },
+            "required": sorted(annotation.__required_keys__),
+        }
     origin = get_origin(annotation)
     arguments = get_args(annotation)
     if origin is Literal:

@@ -90,6 +90,32 @@ def test_html_preparation_is_source_faithful_and_searchable(tmp_path):
     assert validate_library(root)["valid"] is True
 
 
+def test_html_preparation_flags_link_only_full_text(tmp_path):
+    root = tmp_path / "library"
+    initialize_library(root)
+    work, source = _source(
+        root,
+        tmp_path,
+        name="abstract-record.html",
+        media_type="text/html",
+        content=(
+            "<html><body><article><h1>Preparation fixture</h1>"
+            "<h2>Abstract</h2><p>Only the abstract is present.</p>"
+            "<h2>Full Text</h2><p>The Full Text of this article is available "
+            "as a PDF.</p></article></body></html>"
+        ),
+    )
+
+    result = prepare_source(root, work["id"], source["id"])
+
+    assert result["derivatives"][0]["warnings"] == [
+        "html_structure_conservatively_preserved",
+        "full_text_not_present",
+    ]
+    assert result["next_actions"][0]["operation"] == "source.crossref.discover"
+    assert "full-text source" in result["next_actions"][0]["purpose"]
+
+
 def test_xml_preparation_avoids_nested_text_duplication(tmp_path):
     root = tmp_path / "library"
     initialize_library(root)

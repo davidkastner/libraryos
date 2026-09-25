@@ -15,7 +15,7 @@
     "bytes": {"type": "integer", "minimum": 1},
     "media_type": {"type": "string", "minLength": 1},
     "reason": {
-      "enum": ["ambiguous_identity", "access_restricted", "abstract_only", "bot_challenge", "corrupt_source", "landing_page", "type_mismatch"]
+      "enum": ["ambiguous_identity", "access_restricted", "abstract_only", "bot_challenge", "corrupt_source", "download_interstitial", "landing_page", "type_mismatch"]
     },
     "provider": {"type": "string", "minLength": 1},
     "canonical_url": {"type": "string", "format": "uri"},

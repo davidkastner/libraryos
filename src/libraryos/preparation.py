@@ -223,6 +223,27 @@ def _text_markdown(
         parser.feed(raw)
         value = parser.markdown()
         warnings = ["html_structure_conservatively_preserved"]
+        normalized = " ".join(value.casefold().split())
+        full_text_link_only = any(
+            phrase in normalized
+            for phrase in (
+                "full text of this article is available as a pdf",
+                "full text is available as a pdf",
+                "article is available as a pdf",
+            )
+        )
+        body_sections_present = any(
+            heading in normalized
+            for heading in (
+                "## introduction",
+                "## materials and methods",
+                "## methods",
+                "## results",
+                "## discussion",
+            )
+        )
+        if full_text_link_only and not body_sections_present:
+            warnings.append("full_text_not_present")
         locators: list[dict[str, Any]] = []
     elif media_type in {"application/xml", "text/xml"}:
         value, locators = _xml_markdown(source)
@@ -900,32 +921,49 @@ def prepare_source(
         )
         update_job(library, job["id"], status="succeeded", result=result)
         root = str(Path(library).expanduser().resolve())
-        return {
-            **result,
-            "job_id": job["id"],
-            "next_actions": [
-                {
-                    "operation": "search.prepared",
-                    "purpose": (
-                        "Search the prepared representation within this exact work; "
-                        "search results do not establish scientific support."
-                    ),
-                    "arguments": {
-                        "library": root,
-                        "query": "<search terms>",
-                        "work_ids": [work_id],
-                    },
-                    "required_arguments": ["query"],
+        next_actions = [
+            {
+                "operation": "search.prepared",
+                "purpose": (
+                    "Search the prepared representation within this exact work; "
+                    "search results do not establish scientific support."
+                ),
+                "arguments": {
+                    "library": root,
+                    "query": "<search terms>",
+                    "work_ids": [work_id],
                 },
+                "required_arguments": ["query"],
+            },
+            {
+                "operation": "read.resolve",
+                "purpose": (
+                    "Resolve the best available reading representation for "
+                    "source inspection."
+                ),
+                "arguments": {"library": root, "work_id": work_id},
+            },
+        ]
+        if any(
+            "full_text_not_present" in item.get("warnings", [])
+            for item in derivatives
+        ):
+            next_actions.insert(
+                0,
                 {
-                    "operation": "read.resolve",
+                    "operation": "source.crossref.discover",
                     "purpose": (
-                        "Resolve the best available reading representation for "
-                        "source inspection."
+                        "Find an identity-verified full-text source because this "
+                        "prepared representation contains only an abstract or "
+                        "landing record with a linked full-text source."
                     ),
                     "arguments": {"library": root, "work_id": work_id},
                 },
-            ],
+            )
+        return {
+            **result,
+            "job_id": job["id"],
+            "next_actions": next_actions,
         }
     except (OSError, StorageError) as error:
         code = getattr(error, "code", "conversion_failure")
