@@ -45,6 +45,63 @@ These actions expose a mechanical workflow; they do not choose among source
 candidates, grant access, or establish that an acquired or prepared source was
 scientifically inspected.
 
+## Complete agent workflow: from citation to claim receipt
+
+Use one explicit chain and preserve the identifiers returned at each stage:
+
+1. Discover the exact operation contract:
+
+   ```bash
+   libraryos operations metadata.crossref.resolve
+   libraryos operations source.acquire
+   libraryos operations source.prepare
+   libraryos operations search.prepared
+   libraryos operations read.resolve
+   ```
+
+2. Resolve the citation, accept the selected metadata assertion, discover
+   permitted source candidates, and acquire one explicitly selected source.
+   Follow each result's structured `next_actions`; never infer an access class.
+3. Prepare the acquired source. Preparation creates searchable text, page
+   renderings, and figure routes when the source permits them; it is not source
+   inspection.
+4. Search a curator-selected work scope:
+
+   ```bash
+   libraryos call search.prepared --arguments \
+     '{"library":"/path/to/library","query":"His 57 proton transfer",\
+"query_mode":"literal","work_ids":["WORK_ID"]}'
+   ```
+
+5. Open the exact passage, page, or figure using `read.resolve` and the stable
+   locator returned by search or preparation. A search snippet alone is not an
+   inspected passage.
+6. Save the source hash, locator, observed statement, and downstream claim or
+   object mapping in the calling project's review record. LibraryOS preserves
+   source identity and navigation; the adapter owns domain-specific claim
+   semantics.
+
+### Recovery without bypassing LibraryOS
+
+- If `libraryos operation` fails, the discovery command is plural:
+  `libraryos operations` or `libraryos operations OPERATION`.
+- If `--args` fails, use the public spelling `--arguments` with one JSON object.
+- On HTTP 429 throttling, preserve the error and retry later or select another
+  registered source candidate. Do not hammer the provider or treat metadata as
+  full text.
+- On HTTP 401/403 or a restricted-source result, record the access boundary and
+  try another lawful route such as an open repository, author manuscript, or
+  supplied local file. Do not relabel an access-denied page as a paper.
+- If a source reports an unexpected media type, inspect the recorded response
+  metadata. XML may legitimately be `application/xml` or `text/xml`; upgrade
+  LibraryOS if the installed contract rejects one of those standard forms.
+- When a passage cannot settle a claim, inspect the exact page rendering and
+  linked figure asset. Record figure inspection separately from text search.
+
+Direct publisher or metadata queries may be useful for diagnosing a provider,
+but they must not replace the LibraryOS work/source record when the result is
+used as durable campaign evidence.
+
 ## Domain-neutral Python example
 
 ```python
