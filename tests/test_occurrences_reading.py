@@ -59,6 +59,8 @@ def test_read_resolver_prefers_pdf_without_opening_or_review(tmp_path):
         html_path,
         role="full_text",
         media_type="text/html",
+        identity_status="verified",
+        identity_method="fixture",
     )["source"]
     markdown_path = tmp_path / "article.md"
     markdown_path.write_text("# Representations\n")
@@ -121,7 +123,11 @@ def test_read_resolver_returns_candidate_or_recovery(tmp_path):
     work = create_work(root, work_type="report", title="Metadata only")
     unavailable = resolve_read(root, work["id"])
     assert unavailable["representation"] == "unavailable"
-    assert unavailable["next_actions"] == ["discover", "import"]
+    assert unavailable["manuscript_status"] == "unavailable"
+    assert [item["operation"] for item in unavailable["next_actions"]] == [
+        "source.crossref.discover",
+        "source.import",
+    ]
     candidate = register_source_candidate(
         root,
         work["id"],
@@ -133,11 +139,211 @@ def test_read_resolver_returns_candidate_or_recovery(tmp_path):
         verified_at="2026-09-19T12:00:00Z",
     )
     resolved = resolve_read(root, work["id"])
-    assert resolved["representation"] == "stable_source_url"
-    assert resolved["url"] == "https://example.org/report"
+    assert resolved["representation"] == "unavailable"
+    assert resolved["manuscript_status"] == "browser_retrieval_required"
+    assert resolved["readable"] is False
+    assert resolved["retrieval_url"] == "https://example.org/report"
+    assert [item["operation"] for item in resolved["next_actions"]] == [
+        "source.import",
+        "source.prepare",
+        "read.resolve",
+    ]
     assert resolved["review_created"] is False
-    assert candidate["candidate"]["url"] == resolved["url"]
+    assert candidate["candidate"]["url"] == resolved["retrieval_url"]
     assert get_work(root, work["id"])["sources"] == []
+
+
+def test_metadata_only_xml_is_not_a_readable_manuscript(tmp_path):
+    root = tmp_path / "library"
+    initialize_library(root)
+    work = create_work(
+        root,
+        work_type="article",
+        title="Metadata masquerading as full text",
+        identifiers=[{"scheme": "doi", "value": "10.1000/metadata"}],
+    )
+    source_path = tmp_path / "metadata.xml"
+    source_path.write_text(
+        "<article><front><article-meta><title-group><article-title>Example</article-title>"
+        "</title-group><abstract><p>Abstract only.</p></abstract></article-meta></front></article>"
+    )
+    import_source(
+        root,
+        work["id"],
+        source_path,
+        role="full_text",
+        media_type="application/xml",
+    )
+
+    resolved = resolve_read(root, work["id"])
+
+    assert resolved["representation"] == "unavailable"
+    assert resolved["manuscript_status"] == "browser_retrieval_required"
+    assert resolved["readable"] is False
+
+
+def test_prepared_metadata_only_xml_is_not_a_readable_manuscript(tmp_path):
+    root = tmp_path / "library"
+    initialize_library(root)
+    work = create_work(
+        root,
+        work_type="article",
+        title="Prepared metadata masquerading as full text",
+        identifiers=[{"scheme": "doi", "value": "10.1000/prepared-metadata"}],
+    )
+    source_path = tmp_path / "metadata.xml"
+    source_path.write_text(
+        "<article><front><article-meta><abstract><p>Abstract only.</p></abstract>"
+        "</article-meta></front></article>"
+    )
+    source = import_source(
+        root,
+        work["id"],
+        source_path,
+        role="full_text",
+        media_type="application/xml",
+        identity_status="verified",
+        identity_method="fixture",
+    )["source"]
+    markdown_path = tmp_path / "metadata.md"
+    markdown_path.write_text("# Abstract only\n")
+    register_derivative(
+        root,
+        work["id"],
+        markdown_path,
+        role="source_faithful_markdown",
+        media_type="text/markdown",
+        input_sha256=[source["sha256"]],
+        generator_name="fixture",
+        generator_version="1",
+        quality="ready",
+    )
+
+    resolved = resolve_read(root, work["id"])
+
+    assert resolved["representation"] == "unavailable"
+    assert resolved["manuscript_status"] == "browser_retrieval_required"
+    assert resolved["readable"] is False
+
+
+def test_supplement_pdf_is_not_an_article_manuscript(tmp_path):
+    root = tmp_path / "library"
+    initialize_library(root)
+    work = create_work(root, work_type="article", title="Supplement only")
+    source_path = tmp_path / "supporting-information.pdf"
+    source_path.write_bytes(b"%PDF-1.7\n%%EOF\n")
+    import_source(
+        root,
+        work["id"],
+        source_path,
+        role="supplement",
+        media_type="application/pdf",
+    )
+
+    resolved = resolve_read(root, work["id"])
+
+    assert resolved["representation"] == "unavailable"
+    assert resolved["manuscript_status"] == "unavailable"
+    assert resolved["readable"] is False
+
+
+@pytest.mark.parametrize("role", ["accepted_manuscript", "publisher_pdf"])
+def test_verified_legacy_article_pdf_roles_are_readable(tmp_path, role):
+    root = tmp_path / "library"
+    initialize_library(root)
+    work = create_work(root, work_type="article", title=f"Legacy role: {role}")
+    source_path = tmp_path / f"{role}.pdf"
+    source_path.write_bytes(b"%PDF-1.7\n%%EOF\n")
+    import_source(
+        root,
+        work["id"],
+        source_path,
+        role=role,
+        media_type="application/pdf",
+        identity_status="verified",
+        identity_method="fixture",
+    )
+
+    resolved = resolve_read(root, work["id"])
+
+    assert resolved["representation"] == "local_pdf"
+    assert resolved["manuscript_status"] == "manuscript_ready"
+    assert resolved["readable"] is True
+
+
+@pytest.mark.parametrize(
+    ("xml", "expected_status"),
+    [
+        (
+            "<article><front><article-meta><abstract><p>Abstract only.</p></abstract>"
+            "</article-meta></front></article>",
+            "unavailable",
+        ),
+        (
+            "<article><front/><body><sec><p>Article body.</p></sec></body></article>",
+            "manuscript_ready",
+        ),
+    ],
+)
+def test_legacy_structured_article_role_still_requires_a_body(
+    tmp_path, xml, expected_status
+):
+    root = tmp_path / "library"
+    initialize_library(root)
+    work = create_work(root, work_type="article", title="Legacy structured role")
+    source_path = tmp_path / "publisher.xml"
+    source_path.write_text(xml)
+    import_source(
+        root,
+        work["id"],
+        source_path,
+        role="publisher_fulltext",
+        media_type="application/xml",
+        identity_status="verified",
+        identity_method="fixture",
+    )
+
+    resolved = resolve_read(root, work["id"])
+
+    assert resolved["manuscript_status"] == expected_status
+    assert resolved["readable"] is (expected_status == "manuscript_ready")
+
+
+def test_source_data_pdf_is_not_an_article_manuscript(tmp_path):
+    root = tmp_path / "library"
+    initialize_library(root)
+    work = create_work(root, work_type="article", title="Source data only")
+    source_path = tmp_path / "source-data.pdf"
+    source_path.write_bytes(b"%PDF-1.7\n%%EOF\n")
+    import_source(
+        root,
+        work["id"],
+        source_path,
+        role="source_data",
+        media_type="application/pdf",
+        identity_status="verified",
+        identity_method="fixture",
+    )
+
+    resolved = resolve_read(root, work["id"])
+
+    assert resolved["manuscript_status"] == "unavailable"
+    assert resolved["readable"] is False
+
+
+def test_acquired_article_source_that_is_not_readable_needs_preparation(tmp_path):
+    root = tmp_path / "library"
+    initialize_library(root)
+    work = create_work(root, work_type="article", title="Needs preparation")
+    source_path = tmp_path / "article.txt"
+    source_path.write_text("Authoritative article source awaiting conversion.")
+    import_source(root, work["id"], source_path, role="full_text", media_type="text/plain")
+
+    resolved = resolve_read(root, work["id"])
+
+    assert resolved["representation"] == "unavailable"
+    assert resolved["manuscript_status"] == "source_acquired_not_prepared"
+    assert [item["operation"] for item in resolved["next_actions"]] == ["source.prepare"]
 
 
 def test_open_read_uses_preview_without_recording_review(tmp_path):
@@ -152,6 +358,8 @@ def test_open_read_uses_preview_without_recording_review(tmp_path):
         pdf_path,
         role="full_text",
         media_type="application/pdf",
+        identity_status="verified",
+        identity_method="fixture",
     )
 
     with patch("libraryos.reading.sys.platform", "darwin"), patch(

@@ -41,6 +41,8 @@ def test_work_query_returns_bounded_searchable_summaries(tmp_path):
         pdf,
         role="full_text",
         media_type="application/pdf",
+        identity_status="verified",
+        identity_method="fixture",
     )
 
     result = query_works(root, query="lovelace", availability="local_pdf")
@@ -49,6 +51,7 @@ def test_work_query_returns_bounded_searchable_summaries(tmp_path):
     assert result["items"][0]["title"] == "Catalytic mechanism"
     assert result["items"][0]["authors"] == ["Ada Lovelace"]
     assert result["items"][0]["pdf_count"] == 1
+    assert result["items"][0]["manuscript_status"] == "manuscript_ready"
     assert result["items"][0]["scientific_support"] == "not_assessed"
 
 
@@ -180,13 +183,58 @@ def test_catalog_stays_current_after_work_and_source_mutations(tmp_path):
         pdf,
         role="full_text",
         media_type="application/pdf",
+        identity_status="verified",
+        identity_method="fixture",
     )
     item = query_works(root, availability="local_pdf")["items"][0]
     assert item["id"] == work["id"]
     assert item["pdf_count"] == 1
 
     with sqlite3.connect(root / ".libraryos" / "index.sqlite") as connection:
-        assert connection.execute("PRAGMA user_version").fetchone()[0] == 2
+        assert connection.execute("PRAGMA user_version").fetchone()[0] == 3
+
+
+def test_work_query_uses_strict_manuscript_filters(tmp_path):
+    root = tmp_path / "library"
+    initialize_library(root)
+    ready = create_work(root, work_type="article", title="Ready")
+    supplement_only = create_work(root, work_type="article", title="Supplement only")
+    browser = create_work(
+        root,
+        work_type="article",
+        title="Retrieve in browser",
+        identifiers=[{"scheme": "doi", "value": "10.1000/browser"}],
+    )
+    article = tmp_path / "article.pdf"
+    article.write_bytes(b"%PDF-1.7\n%%EOF\n")
+    import_source(
+        root,
+        ready["id"],
+        article,
+        role="full_text",
+        media_type="application/pdf",
+        identity_status="verified",
+        identity_method="fixture",
+    )
+    supplement = tmp_path / "supplement.pdf"
+    supplement.write_bytes(b"%PDF-1.7\n%%EOF\n")
+    import_source(
+        root,
+        supplement_only["id"],
+        supplement,
+        role="supplement",
+        media_type="application/pdf",
+    )
+
+    assert query_works(root, availability="manuscript_ready")["total"] == 1
+    assert query_works(root, availability="browser_retrieval_required")["items"][0]["id"] == (
+        browser["id"]
+    )
+    missing = query_works(root, availability="needs_manuscript")
+    assert {item["id"] for item in missing["items"]} == {
+        supplement_only["id"],
+        browser["id"],
+    }
 
 
 def test_bound_ui_server_serves_app_and_injects_library_scope(tmp_path):

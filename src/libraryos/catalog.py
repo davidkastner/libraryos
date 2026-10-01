@@ -10,9 +10,10 @@ from pathlib import Path
 from typing import Any, Literal
 
 from .library import open_library
+from .manuscripts import classify_manuscript
 from .storage import StorageError, read_json_record
 
-CATALOG_VERSION = 2
+CATALOG_VERSION = 3
 
 
 def _warning_count(record: dict[str, Any]) -> int:
@@ -45,6 +46,7 @@ def _insert_work(
     authors = [_author_label(author) for author in work.get("authors", [])]
     identifiers = work["identifiers"]
     sources = record["sources"]
+    manuscript = classify_manuscript(root / "works" / record["id"], record)
     searchable = " ".join(
         [
             str(work.get("title") or ""),
@@ -59,15 +61,16 @@ def _insert_work(
         """
         INSERT INTO works (
             id, type, title, issued, authors_json, container_title,
-            created_at, updated_at, source_count, pdf_count,
+            created_at, updated_at, source_count, pdf_count, manuscript_status,
             derivative_count, warning_count, search_text, manifest_path
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(id) DO UPDATE SET
             type=excluded.type, title=excluded.title, issued=excluded.issued,
             authors_json=excluded.authors_json,
             container_title=excluded.container_title,
             created_at=excluded.created_at, updated_at=excluded.updated_at,
             source_count=excluded.source_count, pdf_count=excluded.pdf_count,
+            manuscript_status=excluded.manuscript_status,
             derivative_count=excluded.derivative_count,
             warning_count=excluded.warning_count,
             search_text=excluded.search_text, manifest_path=excluded.manifest_path
@@ -82,7 +85,8 @@ def _insert_work(
             record["created_at"],
             record["updated_at"],
             len(sources),
-            sum(source["media_type"] == "application/pdf" for source in sources),
+            len(manuscript["article_pdf_ids"]),
+            manuscript["status"],
             len(record["derivatives"]),
             _warning_count(record),
             searchable,
@@ -160,7 +164,8 @@ def rebuild_catalog(library: str | Path) -> dict[str, int]:
                     issued TEXT, authors_json TEXT NOT NULL,
                     container_title TEXT, created_at TEXT NOT NULL,
                     updated_at TEXT NOT NULL, source_count INTEGER NOT NULL,
-                    pdf_count INTEGER NOT NULL, derivative_count INTEGER NOT NULL,
+                    pdf_count INTEGER NOT NULL, manuscript_status TEXT NOT NULL,
+                    derivative_count INTEGER NOT NULL,
                     warning_count INTEGER NOT NULL, search_text TEXT NOT NULL,
                     manifest_path TEXT NOT NULL
                 );
@@ -193,7 +198,7 @@ def rebuild_catalog(library: str | Path) -> dict[str, int]:
                 CREATE VIRTUAL TABLE prepared_text USING fts5(
                     work_id UNINDEXED, artifact_id UNINDEXED, path UNINDEXED, content
                 );
-                PRAGMA user_version = 2;
+                PRAGMA user_version = 3;
                 """
             )
             for path in sorted((root / "works").glob("*/manifest.json")):

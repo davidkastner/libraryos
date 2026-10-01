@@ -159,9 +159,12 @@ Launch the graphical **Library** interface for a local library with:
 libraryos serve --library /path/to/private-library
 ```
 
-The browser interface lists and searches papers, filters by local PDF
-availability, organizes works into collections, and opens authoritative local
-PDFs in macOS Preview. A work may belong to multiple collections. Opening a
+The browser interface lists and searches papers using strict manuscript states:
+manuscript ready, needs preparation, retrieve in browser, or no manuscript. A
+publisher link never counts as readable full text, and supplements do not make
+an article ready. The interface organizes works into collections and opens
+authoritative local article PDFs in macOS Preview. A work may belong to multiple
+collections. Opening a
 paper or adding it to a collection does not create a review or claim that
 scientific inspection occurred.
 

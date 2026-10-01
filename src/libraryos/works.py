@@ -246,7 +246,17 @@ def query_works(
                 }
             ],
         )
-    allowed_availability = ["all", "local_pdf", "needs_source"]
+    allowed_availability = [
+        "all",
+        "manuscript_ready",
+        "source_acquired_not_prepared",
+        "browser_retrieval_required",
+        "unavailable",
+        "needs_manuscript",
+        # Retained as compatibility aliases with strict manuscript semantics.
+        "local_pdf",
+        "needs_source",
+    ]
     if availability not in allowed_availability:
         raise StorageError(
             "Unknown availability filter",
@@ -309,8 +319,11 @@ def query_works(
         parameters.append(work_type)
     if availability == "local_pdf":
         where.append("w.pdf_count > 0")
-    elif availability == "needs_source":
-        where.append("w.source_count = 0")
+    elif availability in {"needs_source", "needs_manuscript"}:
+        where.append("w.manuscript_status != 'manuscript_ready'")
+    elif availability != "all":
+        where.append("w.manuscript_status = ?")
+        parameters.append(availability)
     predicate = f"WHERE {' AND '.join(where)}" if where else ""
     ordering = {
         "title": "lower(coalesce(w.title, '')) ASC, w.id ASC",
@@ -365,6 +378,7 @@ def query_works(
             "updated_at": row["updated_at"],
             "source_count": row["source_count"],
             "pdf_count": row["pdf_count"],
+            "manuscript_status": row["manuscript_status"],
             "derivative_count": row["derivative_count"],
             "warning_count": row["warning_count"],
             "scientific_support": "not_assessed",

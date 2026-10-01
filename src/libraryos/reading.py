@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any
 
 from .library import open_library
+from .manuscripts import classify_manuscript
 from .storage import StorageError, resolve_library_path
 from .works import get_work
 
@@ -192,43 +193,27 @@ def resolve_read(
     work = get_work(root, work_id)
     derivatives = work["derivatives"]
     sources = work["sources"]
+    manuscript = classify_manuscript(root / "works" / work_id, work)
+    article_pdf_ids = set(manuscript["article_pdf_ids"])
+    prepared_text_ids = set(manuscript["prepared_text_ids"])
+    structured_source_ids = set(manuscript["structured_source_ids"])
     routes = {
         "local_pdf": [
-            item for item in sources if item["media_type"] == "application/pdf"
+            item for item in sources if item["id"] in article_pdf_ids
         ],
         "source_faithful_text": [
             item
             for item in derivatives
-            if item["role"] == "source_faithful_markdown"
-            and item["quality"] in {"ready", "partial"}
+            if item["id"] in prepared_text_ids
         ],
         "local_structured_source": [
             item
             for item in sources
-            if item["media_type"]
-            in {"text/html", "application/xhtml+xml", "application/xml", "text/xml"}
+            if item["id"] in structured_source_ids
         ],
     }
-    urls = sorted(
-        {
-            item["canonical_url"]
-            for item in sources
-            if item.get("canonical_url")
-        }
-        | {item["url"] for item in work.get("source_candidates", [])}
-    )
     for representation in preference:
         if representation == "stable_source_url":
-            if urls:
-                return {
-                    "work_id": work_id,
-                    "representation": representation,
-                    "url": urls[0],
-                    "preference": preference,
-                    "opened": False,
-                    "review_created": False,
-                    "scientific_inspection": "not_performed",
-                }
             continue
         candidates = routes[representation]
         if candidates:
@@ -247,15 +232,80 @@ def resolve_read(
                 "artifact_id": artifact["id"],
                 "path": str(local),
                 "media_type": artifact["media_type"],
+                "manuscript_status": manuscript["status"],
+                "readable": True,
+                "reason": manuscript["reason"],
+                "article_pdf_ids": manuscript["article_pdf_ids"],
+                "prepared_text_ids": manuscript["prepared_text_ids"],
+                "structured_source_ids": manuscript["structured_source_ids"],
                 "preference": preference,
                 "opened": False,
                 "review_created": False,
                 "scientific_inspection": "not_performed",
             }
+    next_actions = (
+        [
+            {
+                "operation": "source.import",
+                "purpose": (
+                    "After downloading the exact article with an authorized browser, "
+                    "import the preserved bytes with identity and access provenance."
+                ),
+                "required_arguments": [
+                    "library",
+                    "work_id",
+                    "source_path",
+                    "role",
+                    "access",
+                    "identity_status",
+                    "identity_method",
+                    "canonical_url",
+                ],
+            },
+            {
+                "operation": "source.prepare",
+                "purpose": "Prepare the imported article for agent search and inspection.",
+                "required_arguments": ["library", "work_id", "source_id"],
+            },
+            {
+                "operation": "read.resolve",
+                "purpose": "Confirm that the exact article is now manuscript-ready.",
+                "required_arguments": ["library", "work_id"],
+            },
+        ]
+        if manuscript["status"] == "browser_retrieval_required"
+        else [
+            {
+                "operation": "source.prepare",
+                "purpose": "Prepare acquired article bytes for agent use.",
+                "required_arguments": ["library", "work_id", "source_id"],
+            }
+        ]
+        if manuscript["status"] == "source_acquired_not_prepared"
+        else [
+            {
+                "operation": "source.crossref.discover",
+                "purpose": "Discover a legitimate source route for the exact work.",
+                "required_arguments": ["library", "work_id"],
+            },
+            {
+                "operation": "source.import",
+                "purpose": "Import exact article bytes obtained through an authorized route.",
+                "required_arguments": ["library", "work_id", "source_path", "role"],
+            },
+        ]
+    )
     return {
         "work_id": work_id,
         "representation": "unavailable",
-        "next_actions": ["discover", "import"],
+        "manuscript_status": manuscript["status"],
+        "readable": False,
+        "reason": manuscript["reason"],
+        "retrieval_url": manuscript["retrieval_url"],
+        "article_pdf_ids": manuscript["article_pdf_ids"],
+        "prepared_text_ids": manuscript["prepared_text_ids"],
+        "structured_source_ids": manuscript["structured_source_ids"],
+        "next_actions": next_actions,
         "preference": preference,
         "opened": False,
         "review_created": False,

@@ -575,15 +575,19 @@ coverage.
 
 ### 6.3 Best available reading representation
 
-The default **Read** action resolves deterministically:
+The default **Read** action resolves deterministically and reports one strict
+manuscript state: `manuscript_ready`, `source_acquired_not_prepared`,
+`browser_retrieval_required`, or `unavailable`.
 
 1. preferred local PDF when available;
 2. local structured full text in the Library reader;
 3. verified local HTML;
-4. stable source landing page;
-5. recovery actions when metadata-only.
+4. an explicit browser-retrieval workflow when only a stable source route exists;
+5. recovery actions when metadata-only or unavailable.
 
-Users can always choose another available representation. Opening any
+Abstracts, metadata exports, landing pages, figures, source data, and
+supplements never satisfy article-manuscript readiness. A URL is navigation,
+not full text. Users can always choose another available representation. Opening any
 representation records navigation history only if enabled; it never creates a
 review.
 

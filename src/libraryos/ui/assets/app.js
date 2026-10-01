@@ -248,8 +248,15 @@ function render(items, append = false) {
       event.stopPropagation();
       showCollectionPicker(item);
     });
+    if (item.manuscript_status === "manuscript_ready") {
+      sourceState.textContent = "Manuscript ready";
+      if (!item.pdf_count) {
+        button.disabled = true;
+        copyButton.disabled = true;
+        article.classList.add("no-pdf");
+      }
+    }
     if (item.pdf_count) {
-      sourceState.textContent = item.pdf_count === 1 ? "Downloaded" : `${item.pdf_count} files`;
       button.setAttribute("aria-label", `Open ${item.title || "paper"} in Preview`);
       button.title = "Open in Preview";
       copyButton.setAttribute("aria-label", `Copy PDF path for ${item.title || "paper"}`);
@@ -264,8 +271,12 @@ function render(items, append = false) {
       });
       copyButton.addEventListener("dblclick", event => event.stopPropagation());
       article.addEventListener("dblclick", () => openPaper(item, button));
-    } else {
-      sourceState.textContent = item.source_count ? "No PDF" : "Missing";
+    } else if (item.manuscript_status !== "manuscript_ready") {
+      sourceState.textContent = {
+        source_acquired_not_prepared: "Needs preparation",
+        browser_retrieval_required: "Retrieve in browser",
+        unavailable: "No manuscript",
+      }[item.manuscript_status] || "No manuscript";
       sourceState.classList.add("missing");
       article.classList.add("no-pdf");
       button.disabled = true;
@@ -378,7 +389,7 @@ document.querySelectorAll(".nav-item[data-filter]").forEach(button => {
     setActiveNavigation(button);
     document.querySelector("#page-title").textContent =
       button.dataset.filter === "all" ? "All Papers" :
-      button.dataset.filter === "local_pdf" ? "Downloaded" : "Needs Source";
+      button.dataset.filter === "manuscript_ready" ? "Manuscript Ready" : "Needs Manuscript";
     state.availability = button.dataset.filter;
     state.collectionId = null;
     loadPapers();
