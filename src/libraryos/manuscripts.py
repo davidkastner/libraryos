@@ -217,9 +217,7 @@ def classify_manuscript(bundle: Path, manifest: dict[str, Any]) -> dict[str, Any
         }
     )
     doi_url = _doi_url(manifest)
-    if doi_url:
-        urls.append(doi_url)
-    if urls:
+    if doi_url or urls:
         return {
             "status": "browser_retrieval_required",
             "readable": False,
@@ -230,7 +228,9 @@ def classify_manuscript(bundle: Path, manifest: dict[str, Any]) -> dict[str, Any
             "article_pdf_ids": [],
             "prepared_text_ids": [],
             "structured_source_ids": [],
-            "retrieval_url": sorted(set(urls))[0],
+            # Prefer the canonical DOI resolver to metadata/API endpoints recorded
+            # during discovery. It is the most reliable browser starting point.
+            "retrieval_url": doi_url or sorted(set(urls))[0],
         }
     return {
         "status": "unavailable",

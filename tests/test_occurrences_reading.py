@@ -173,6 +173,7 @@ def test_metadata_only_xml_is_not_a_readable_manuscript(tmp_path):
         source_path,
         role="full_text",
         media_type="application/xml",
+        canonical_url="https://api.example.test/metadata/10.1000/metadata",
     )
 
     resolved = resolve_read(root, work["id"])
@@ -180,6 +181,7 @@ def test_metadata_only_xml_is_not_a_readable_manuscript(tmp_path):
     assert resolved["representation"] == "unavailable"
     assert resolved["manuscript_status"] == "browser_retrieval_required"
     assert resolved["readable"] is False
+    assert resolved["retrieval_url"] == "https://doi.org/10.1000/metadata"
 
 
 def test_prepared_metadata_only_xml_is_not_a_readable_manuscript(tmp_path):
