@@ -1,3 +1,4 @@
+import json
 import zipfile
 
 import pytest
@@ -34,6 +35,61 @@ def _source(root, tmp_path, *, name, content, media_type, verified=True):
         identity_method="fixture" if verified else None,
     )
     return work, imported["source"]
+
+
+def test_mislabeled_local_pdf_is_rejected_without_importing_or_losing_bytes(tmp_path):
+    root = tmp_path / 'library'
+    initialize_library(root)
+    work = create_work(root, work_type='article', title='Type mismatch fixture')
+    supplied = tmp_path / 'supplement.pdf'
+    content = b'<!DOCTYPE html><html>captcha challenge</html>'
+    supplied.write_bytes(content)
+    with pytest.raises(StorageError) as error:
+        import_source(root, work['id'], supplied, role='supplement')
+    assert error.value.code == 'source_media_type_mismatch'
+    assert not get_work(root, work['id'])['sources']
+    assert supplied.read_bytes() == content
+    imported = import_source(root, work['id'], supplied, role='supplement', media_type='text/html')
+    assert imported['source']['media_type'] == 'text/html'
+
+
+def test_legacy_html_record_cannot_enter_pdf_preparation(tmp_path):
+    root = tmp_path / 'library'
+    initialize_library(root)
+    work, source = _source(root, tmp_path, name='challenge.html',
+        content='<!doctype html><html>captcha challenge</html>', media_type='text/html')
+    manifest = root / 'works' / work['id'] / 'manifest.json'
+    record = json.loads(manifest.read_text())
+    record['sources'][0]['media_type'] = 'application/pdf'  # simulate a legacy migrated declaration
+    manifest.write_text(json.dumps(record))
+    before = manifest.read_bytes()
+    with pytest.raises(StorageError) as error:
+        prepare_source(root, work['id'], source['id'])
+    assert error.value.code == 'source_media_type_mismatch'
+    assert manifest.read_bytes() == before and list_jobs(root) == []
+
+
+def test_import_rechecks_the_copied_pdf_bytes_before_publication(tmp_path, monkeypatch):
+    import libraryos.acquisition as acquisition
+
+    root = tmp_path / 'library'
+    initialize_library(root)
+    work = create_work(root, work_type='article', title='Changing local source')
+    supplied = tmp_path / 'paper.pdf'
+    supplied.write_bytes(b'%PDF-1.4\nfixture\n%%EOF')
+    original = acquisition.check_pdf_source
+
+    def replace_after_inspection(path, media_type):
+        original(path, media_type)
+        if path == supplied:
+            supplied.write_bytes(b'<!DOCTYPE html><html>challenge</html>')
+
+    monkeypatch.setattr(acquisition, 'check_pdf_source', replace_after_inspection)
+    with pytest.raises(StorageError) as error:
+        import_source(root, work['id'], supplied, role='full_text')
+    assert error.value.code == 'source_media_type_mismatch'
+    assert get_work(root, work['id'])['sources'] == []
+    assert list((root / 'works' / work['id'] / 'source').iterdir()) == []
 
 
 def test_html_preparation_is_source_faithful_and_searchable(tmp_path):

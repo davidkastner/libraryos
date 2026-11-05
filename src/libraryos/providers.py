@@ -81,11 +81,11 @@ class RelationDiscoveryProvider(Protocol):
 JsonTransport = Callable[[str, dict[str, str], float], tuple[dict[str, Any], bytes]]
 
 
-def _default_json_transport(
+def _json_payload_transport(
     url: str,
     headers: dict[str, str],
     timeout: float,
-) -> tuple[dict[str, Any], bytes]:
+) -> tuple[Any, bytes]:
     request = urllib.request.Request(url, headers=headers)
     try:
         with urllib.request.urlopen(request, timeout=timeout) as response:
@@ -116,6 +116,11 @@ def _default_json_transport(
             code="provider_response_invalid",
             path=url,
         ) from error
+    return value, payload
+
+
+def _default_json_transport(url, headers, timeout) -> tuple[dict[str, Any], bytes]:
+    value, payload = _json_payload_transport(url, headers, timeout)
     if not isinstance(value, dict):
         raise StorageError(
             "Metadata provider response must be an object",
@@ -272,6 +277,67 @@ class CrossrefProvider:
                     media_type="text/html",
                 )
             )
+        return results
+
+
+class FigshareProvider:
+    """Discover hosted supplements only through an exact parent-resource DOI."""
+
+    name = 'figshare'
+    version = 'rest-api-v2'
+
+    def __init__(self, *, timeout=30, transport=None):
+        self.timeout = timeout
+        self.transport = transport or _json_payload_transport
+
+    def discover(self, work: dict[str, Any]) -> list[SourceCandidateResult]:
+        identifiers = [normalize_identifier(item) for item in work['work'].get('identifiers', [])
+                       if item.get('scheme') == 'doi']
+        if len(identifiers) != 1:
+            raise StorageError('Figshare supplement discovery requires one exact parent DOI',
+                               code='provider_identifier_missing')
+        doi = identifiers[0]['normalized']
+        url = 'https://api.figshare.com/v2/articles?' + urllib.parse.urlencode(
+            {'resource_doi': doi, 'page_size': 100})
+        headers = {'Accept': 'application/json', 'User-Agent': 'libraryos/0.1'}
+        listed, _ = self.transport(url, headers, self.timeout)
+        if not isinstance(listed, list) or len(listed) >= 100:
+            raise StorageError('Figshare resource lookup must return a complete list below 100 items',
+                               code='provider_response_invalid', path=url)
+        results = []
+        seen = set()
+        for summary in listed:
+            article_id = summary.get('id') if isinstance(summary, dict) else None
+            if type(article_id) is not int or article_id < 1 or article_id in seen:
+                raise StorageError('Figshare returned an invalid or repeated article identity',
+                                   code='provider_response_invalid', path=url)
+            seen.add(article_id)
+            endpoint = f'https://api.figshare.com/v2/articles/{article_id}'
+            detail, _ = self.transport(endpoint, headers, self.timeout)
+            if not isinstance(detail, dict) or detail.get('id') != article_id:
+                raise StorageError('Figshare detail has the wrong article identity',
+                                   code='provider_identity_conflict', path=endpoint)
+            returned = normalize_identifier({'scheme': 'doi', 'value': detail.get('resource_doi')})
+            if returned['normalized'] != doi:
+                raise StorageError('Figshare detail has the wrong parent-resource DOI',
+                                   code='provider_identity_conflict', path=endpoint)
+            if detail.get('is_embargoed') is not False:
+                continue
+            files = detail.get('files')
+            if not isinstance(files, list):
+                raise StorageError('Figshare detail files must be a list',
+                                   code='provider_response_invalid', path=endpoint)
+            for item in files:
+                if not isinstance(item, dict) or item.get('is_link_only') is not False:
+                    continue
+                file_id = item.get('id')
+                download = item.get('download_url')
+                if type(file_id) is not int or file_id < 1 or download != f'https://ndownloader.figshare.com/files/{file_id}':
+                    raise StorageError('Figshare file has an unrecognized hosted download identity',
+                                       code='provider_identity_conflict', path=endpoint)
+                results.append(SourceCandidateResult(url=download, access='public_repository',
+                    identity_method=f'figshare_exact_resource_doi:{doi}:article:{article_id}:file:{file_id}',
+                    media_type=item.get('mimetype') if isinstance(item.get('mimetype'), str) else None))
         return results
 
 

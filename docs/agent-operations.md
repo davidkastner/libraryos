@@ -102,6 +102,21 @@ Direct publisher or metadata queries may be useful for diagnosing a provider,
 but they must not replace the LibraryOS work/source record when the result is
 used as durable campaign evidence.
 
+For a parent article whose supplements are hosted on Figshare (including ACS),
+use `source.figshare.discover` with the parent's work ID. It checks the exact
+`resource_doi`, article ID and hosted file ID through the
+[public Figshare API](https://docs.figshare.com/v2/), then registers ordinary
+source candidates. Follow the returned `source.acquire` action and choose a
+supplement role; neither discovery nor acquisition implies inspection. Embargoed
+and link-only items are withheld. A complete response below 100 items is required;
+the operation does not silently truncate or match by title similarity.
+
+Local imports and preparation reject a source declared as PDF when its bytes
+are another media type, including legacy HTML challenge records. The original
+file is retained. A network response rejected by acquisition remains quarantined
+under its detected type. Use another registered source or a genuine supplied PDF;
+do not change a challenge page's media declaration to obtain PDF derivatives.
+
 ## Domain-neutral Python example
 
 ```python

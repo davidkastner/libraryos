@@ -1,3 +1,5 @@
+import fitz
+
 from libraryos import (
     create_work,
     import_source,
@@ -16,7 +18,10 @@ def _library(tmp_path):
     initialize_library(root)
     work = create_work(root, work_type="article", title="Navigation fixture")
     source_path = tmp_path / "paper.pdf"
-    source_path.write_bytes(b"%PDF fixture")
+    with fitz.open() as pdf:
+        for _ in range(3):
+            pdf.new_page()
+        pdf.save(source_path)
     source = import_source(
         root, work["id"], source_path, role="full_text", media_type="application/pdf",
         identity_status="verified", identity_method="fixture",

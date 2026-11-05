@@ -11,6 +11,7 @@ from .identity import identifier_key, normalize_identifier
 from .library import open_library, utc_now
 from .providers import (
     CrossrefProvider,
+    FigshareProvider,
     MetadataProvider,
     OpenAlexProvider,
     RelationDiscoveryProvider,
@@ -309,6 +310,13 @@ def discover_crossref(
             publisher_access=publisher_access,
         ),
     )
+
+
+def discover_figshare(
+    library: str | Path, work_id: str, *, timeout: float = 30,
+) -> dict[str, Any]:
+    """Discover exact parent-DOI Figshare supplement candidates; acquire none."""
+    return discover_sources(library, work_id, provider=FigshareProvider(timeout=timeout))
 
 
 def discover_relations(
