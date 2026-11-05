@@ -38,6 +38,7 @@ def main() -> int:
     ).stdout.strip()
     schemas = _run(cli, "schemas")["schemas"]
     operations = _run(cli, "operations")["operations"]
+    figshare = _run(cli, 'operations', 'source.figshare.discover')
 
     with tempfile.TemporaryDirectory(prefix="libraryos-installed-verify-") as temporary:
         root = Path(temporary) / "library"
@@ -85,7 +86,9 @@ def main() -> int:
 
     assert version == "libraryos 0.1.0.dev0"
     assert len(schemas) == 15
-    assert len(operations) == 76
+    assert len(operations) == 77
+    assert figshare['arguments_schema']['required'] == ['library', 'work_id']
+    assert figshare['effects'] == {'mutation': True, 'network': True}
     assert initialized["operation"] == "libraryos.library.initialize"
     assert created["result"]["work"]["title"] == "Clean install"
     assert rebuilt["result"]["works"] == 1
