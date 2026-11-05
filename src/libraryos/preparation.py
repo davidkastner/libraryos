@@ -759,6 +759,9 @@ def _source_for_preparation(
             code="source_not_found",
             path=str(source_path),
         )
+    from .acquisition import check_pdf_source
+
+    check_pdf_source(source_path, source['media_type'])
     return source_path, source
 
 

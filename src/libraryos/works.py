@@ -495,6 +495,10 @@ def import_source(
     supplied = Path(source_path).expanduser().resolve()
     if not supplied.is_file():
         raise StorageError("Source is not a regular file", code="source_not_found", path=str(supplied))
+    from .acquisition import check_pdf_source
+
+    media_type = media_type or mimetypes.guess_type(supplied.name)[0] or 'application/octet-stream'
+    check_pdf_source(supplied, media_type)
     digest = sha256_file(supplied)
     with exclusive_lock(root / ".libraryos" / "locks" / f"work-{work_id}.lock"):
         manifest_path = bundle / "manifest.json"
@@ -512,9 +516,7 @@ def import_source(
             "path": relative,
             "sha256": digest,
             "bytes": supplied.stat().st_size,
-            "media_type": media_type
-            or mimetypes.guess_type(supplied.name)[0]
-            or "application/octet-stream",
+            "media_type": media_type,
             "role": role,
             "version": version,
             "access": access,
@@ -553,6 +555,7 @@ def import_source(
                     code="source_copy_hash_mismatch",
                     path=str(supplied),
                 )
+            check_pdf_source(temporary, media_type)
             os.chmod(temporary, 0o600)
             os.replace(temporary, destination)
             published = True

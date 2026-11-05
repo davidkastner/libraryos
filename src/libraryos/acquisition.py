@@ -243,6 +243,21 @@ def _suffix_for_media_type(media_type: str, *, fallback: str) -> str:
     return canonical.get(media_type, mimetypes.guess_extension(media_type) or fallback)
 
 
+def check_pdf_source(path: Path, media_type: str) -> None:
+    """Reject a mislabeled local or legacy PDF before registration/preparation."""
+    if media_type.casefold().split(';', 1)[0].strip() != 'application/pdf':
+        return
+    prefix, _ = _read_edges(path)
+    detected = _sniff_media_type(prefix)
+    if detected != 'application/pdf':
+        raise StorageError(
+            f'Source is declared application/pdf but its bytes are {detected}. '
+            'Keep the original bytes; acquire a genuine PDF through a registered candidate '
+            'or import the supplied file with its actual media type. Do not prepare it as a paper PDF.',
+            code='source_media_type_mismatch', path=str(path),
+        )
+
+
 def _inspect_response(path: Path, declared_media_type: str) -> tuple[str, str | None]:
     prefix, suffix = _read_edges(path)
     sniffed = _sniff_media_type(prefix)

@@ -49,6 +49,7 @@ from .library import initialize_library, open_library, validate_library
 from .metadata import (
     accept_metadata_assertion,
     discover_crossref,
+    discover_figshare,
     discover_openalex_relations,
     resolve_crossref,
 )
@@ -188,6 +189,9 @@ OPERATIONS: dict[str, OperationDefinition] = {
     ),
     "source.crossref.discover": OperationDefinition(
         discover_crossref, True, True, "source.acquire"
+    ),
+    "source.figshare.discover": OperationDefinition(
+        discover_figshare, True, True, "source.acquire"
     ),
     "relations.openalex.discover": OperationDefinition(
         discover_openalex_relations, False, True, "library.read"

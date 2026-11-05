@@ -15,6 +15,7 @@ from libraryos import (
     resolve_metadata,
     validate_library,
 )
+from libraryos.providers import FigshareProvider
 
 
 def _crossref_response(*, doi="10.1234/example", title="Resolved title"):
@@ -46,6 +47,57 @@ def _crossref_response(*, doi="10.1234/example", title="Resolved title"):
     }
     payload = json.dumps(value, sort_keys=True).encode()
     return value, payload
+
+
+def _figshare_transport(*, resource='10.1021/jp2046504', detail_id=2620114,
+                        embargo=False, link_only=False, file_id=4270468):
+    # Exact hosted supplement recovered for the G03 ACS source case.
+    def transport(url, headers, timeout):
+        if '/articles?' in url:
+            assert 'resource_doi=10.1021%2Fjp2046504' in url
+            value = [{'id': 2620114, 'doi': '10.1021/jp2046504.s001'}]
+        else:
+            assert url == 'https://api.figshare.com/v2/articles/2620114'
+            value = dict(id=detail_id, doi='10.1021/jp2046504.s001', resource_doi=resource,
+                is_embargoed=embargo, files=[dict(id=file_id, name='jp2046504_si_001.pdf',
+                    is_link_only=link_only, download_url='https://ndownloader.figshare.com/files/4270468',
+                    mimetype='application/pdf')])
+        return value, json.dumps(value).encode()
+    return transport
+
+
+def test_figshare_exact_parent_discovery_uses_existing_candidate_and_acquisition_routes(tmp_path):
+    root = tmp_path / 'library'
+    initialize_library(root)
+    work = create_work(root, work_type='article', title='Supplement fixture',
+        identifiers=[dict(scheme='doi', value='10.1021/jp2046504')])
+    provider = FigshareProvider(transport=_figshare_transport())
+    first = discover_sources(root, work['id'], provider=provider)
+    repeated = discover_sources(root, work['id'], provider=provider)
+    assert not first['acquired'] and first['scientific_inspection'] == 'not_assessed'
+    candidate = first['candidates'][0]['candidate']
+    assert candidate['id'] == repeated['candidates'][0]['candidate']['id']
+    assert candidate['access'] == 'public_repository' and candidate['media_type'] == 'application/pdf'
+    assert 'article:2620114:file:4270468' in candidate['identity_method']
+    action = first['next_actions'][0]
+    assert action['operation'] == 'source.acquire' and action['required_arguments'] == ['role']
+    assert action['arguments']['identity_evidence']['candidate_id'] == candidate['id']
+
+
+@pytest.mark.parametrize('options', [
+    {'resource': '10.1021/unrelated'}, {'detail_id': 99}, {'file_id': 99},
+])
+def test_figshare_never_accepts_title_similarity_or_wrong_file_identity(options):
+    work = {'work': {'identifiers': [dict(scheme='doi', value='10.1021/jp2046504')]}}
+    with pytest.raises(StorageError) as error:
+        FigshareProvider(transport=_figshare_transport(**options)).discover(work)
+    assert error.value.code == 'provider_identity_conflict'
+
+
+@pytest.mark.parametrize('options', [{'embargo': True}, {'link_only': True}])
+def test_figshare_withholds_restricted_or_link_only_material(options):
+    work = {'work': {'identifiers': [dict(scheme='doi', value='10.1021/jp2046504')]}}
+    assert FigshareProvider(transport=_figshare_transport(**options)).discover(work) == []
 
 
 def _provider(**changes):
