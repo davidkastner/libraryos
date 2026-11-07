@@ -2,6 +2,7 @@ import hashlib
 import json
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path
 
 import pytest
 
@@ -260,6 +261,37 @@ def test_xml_suffix_media_type_is_accepted_as_xml(tmp_path, source_server):
     assert not list((root / "quarantine").glob("*/manifest.json"))
 
 
+@pytest.mark.parametrize("declared_media_type", ["image/jpeg", "application/octet-stream"])
+def test_jpeg_figure_is_acquired_unchanged(tmp_path, source_server, declared_media_type):
+    base_url, routes = source_server
+    body = (Path(__file__).parent / "fixtures" / "one-pixel.jpg").read_bytes()
+    routes["/figure"] = (200, declared_media_type, body)
+    root = tmp_path / "library"
+    initialize_library(root)
+    work = create_work(root, work_type="article", title="Illustrated article")
+    url = f"{base_url}/figure"
+
+    result = acquire_url(
+        root,
+        work["id"],
+        url,
+        role="figure",
+        access="open_access",
+        allowed_access=["open_access"],
+        expected_media_type="image/jpeg",
+        identity_evidence=_verified_candidate(root, work["id"], url),
+    )
+
+    assert result["created"] is True
+    source = get_work(root, work["id"])["sources"][0]
+    assert source["media_type"] == "image/jpeg"
+    assert source["path"].endswith(".jpg")
+    assert source["sha256"] == hashlib.sha256(body).hexdigest()
+    assert (root / "works" / work["id"] / source["path"]).read_bytes() == body
+    assert not list((root / "quarantine").glob("*/manifest.json"))
+    assert validate_library(root)["valid"] is True
+
+
 @pytest.mark.parametrize(
     ("path", "media_type", "body", "expected_code"),
     [
@@ -304,6 +336,19 @@ def test_xml_suffix_media_type_is_accepted_as_xml(tmp_path, source_server):
             "application/pdf",
             b"%PDF-1.7\nincomplete",
             "corrupt_source",
+        ),
+        (
+            "/fake.jpg",
+            "image/jpeg",
+            b"<html><body>This is an HTML response, not the requested figure.</body></html>",
+            "type_mismatch",
+        ),
+        pytest.param(
+            "/broken.jpg",
+            "image/jpeg",
+            (Path(__file__).parent / "fixtures" / "one-pixel.jpg").read_bytes()[:-2],
+            "corrupt_source",
+            id="truncated-jpeg",
         ),
     ],
 )
