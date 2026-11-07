@@ -772,15 +772,25 @@ Acquisition starts only after the caller supplies identity evidence that agrees
 with the target work. V1 accepts an expected source hash, an identifier or exact
 title that can be checked against textual source bytes, or a previously
 verified provider candidate registered on that work with verifier and
-timestamp. Candidate acquisition must match its canonical URL and access class;
-the registered candidate supplies its authoritative identity method, so callers
-need only pass its `candidate_id`. An inline assertion cannot self-certify a
+timestamp. A candidate's `request_url_sha256` binds the complete request URL,
+including the encoded query and any user information, with the fragment omitted.
+Query order and repeated keys remain significant. Candidate deduplication and
+acquisition use this fingerprint as well as the canonical URL and access class;
+redacted URL equality alone is not identity. A candidate without a request
+binding cannot authorize acquisition. Register a provider-verified candidate for
+the original request before proceeding. Acquisition jobs retain the fingerprint
+and candidate ID, without retaining the request's replayable secrets.
+The registered candidate supplies its authoritative identity method, so
+`identity_evidence` needs only its `candidate_id`. An inline assertion cannot self-certify a
 candidate. The successful transfer of bytes is not identity evidence. Source
 records may be marked `verified` only after one of these checks succeeds.
 
 Request URLs may contain transient query parameters needed for retrieval, but
 durable job, source, and quarantine records retain only a canonical HTTP(S)
-origin and path. User information, queries, fragments, credentials, cookies,
+origin and path. The request fingerprint does not reconstruct a download URL.
+Discovery actions omit the URL and require the original authorized request URL
+when its persisted form is redacted; a redacted path is never suggested as an
+equivalent request. User information, queries, fragments, credentials, cookies,
 authorization headers, and signed state are never persisted. A nonempty
 response rejected as ambiguous, restricted, abstract-only, a landing page, a
 bot challenge, corrupt, or type-mismatched is copied byte-for-byte into a

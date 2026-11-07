@@ -414,11 +414,12 @@ def register_source_candidate(
 
     # Import locally to keep URL persistence policy defined in one place
     # without introducing an import cycle at module import time.
-    from .acquisition import ACCESS_CLASSES, sanitize_url
+    from .acquisition import ACCESS_CLASSES, request_url_sha256, sanitize_url
 
     root, _ = open_library(library)
     bundle = _work_path(root, work_id)
     canonical_url = sanitize_url(url)
+    request_identity = request_url_sha256(url)
     if access not in ACCESS_CLASSES:
         raise StorageError(
             "Source candidate has an unknown access class",
@@ -439,6 +440,7 @@ def register_source_candidate(
         for existing in manifest.get("source_candidates", []):
             if (
                 existing["url"] == canonical_url
+                and existing.get("request_url_sha256") == request_identity
                 and existing["provider"] == provider
                 and existing["access"] == access
             ):
@@ -446,6 +448,7 @@ def register_source_candidate(
         candidate = {
             "id": str(uuid.uuid4()),
             "url": canonical_url,
+            "request_url_sha256": request_identity,
             "provider": provider,
             "access": access,
             "media_type": media_type,

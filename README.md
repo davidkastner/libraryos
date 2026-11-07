@@ -183,6 +183,9 @@ self-contained macOS build remains a later packaging stage.
 - Keep library instances outside Git and maintain independent backups.
 - Source bytes are copied into private work bundles and never stored in SQLite.
 - URL acquisition requires explicit identity evidence before network access.
+- Verified candidates bind the exact request fingerprint, including query
+  selection. Different assets at one path cannot share acquisition authority;
+  actions require the original URL when durable provenance is redacted.
 - Persisted URLs omit user information, queries, and fragments; ambiguous or
   deceptive nonempty responses are retained unchanged in quarantine and are
   never attached to a work.

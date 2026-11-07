@@ -136,6 +136,7 @@
         "properties": {
           "id": {"type": "string", "format": "uuid"},
           "url": {"type": "string", "format": "uri"},
+          "request_url_sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
           "provider": {"type": "string", "minLength": 1},
           "access": {
             "enum": ["open_access", "public_repository", "institutional", "restricted", "user_provided", "unknown"]

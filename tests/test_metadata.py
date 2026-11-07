@@ -229,12 +229,18 @@ def test_discovery_records_candidates_but_does_not_acquire(tmp_path):
     assert len(result["next_actions"]) == 2
     for candidate, action in zip(result["candidates"], result["next_actions"], strict=True):
         assert action["operation"] == "source.acquire"
-        assert action["arguments"]["url"] == candidate["candidate"]["url"]
+        if candidate["candidate"]["media_type"] == "application/pdf":
+            assert "url" not in action["arguments"]
+            assert action["required_arguments"] == ["role", "url"]
+            assert "original authorized request URL" in action["purpose"]
+        else:
+            assert action["arguments"]["url"] == candidate["candidate"]["url"]
+            assert action["required_arguments"] == ["role"]
         assert action["arguments"]["access"] == candidate["candidate"]["access"]
         assert action["arguments"]["identity_evidence"] == {
             "candidate_id": candidate["candidate"]["id"]
         }
-        assert action["required_arguments"] == ["role"]
+    assert "token=transient" not in json.dumps(result)
 
     from libraryos import get_work
 
