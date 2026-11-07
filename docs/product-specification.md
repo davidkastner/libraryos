@@ -286,6 +286,13 @@ Each source records:
 - original filename when useful;
 - warnings and relationships to other sources.
 
+JPEG figures are recognized from their byte signature and retained unchanged
+with a canonical `.jpg` suffix. Acquisition rejects JPEG responses without an
+end-of-image marker, and rejects HTML or other media mislabeled as JPEG. These
+checks establish media identity and detect basic truncation; they do not decode
+the image or establish scientific inspection or support. Explicit work-identity
+evidence and access authorization are still required.
+
 Access class and redistribution permission are independent. No credential,
 cookie, authorization header, or expiring signed URL may be persisted.
 

@@ -231,6 +231,8 @@ def _sniff_media_type(prefix: bytes) -> str:
         return "application/zip"
     if stripped.startswith(b"\x89PNG\r\n\x1a\n"):
         return "image/png"
+    if prefix.startswith(b"\xff\xd8\xff"):
+        return "image/jpeg"
     if any(marker in lowered for marker in _HTML_MARKERS):
         return "text/html"
     if stripped.startswith(b"<?xml") or (
@@ -252,6 +254,7 @@ def _suffix_for_media_type(media_type: str, *, fallback: str) -> str:
         "application/xml": ".xml",
         "application/zip": ".zip",
         "image/png": ".png",
+        "image/jpeg": ".jpg",
         "text/html": ".html",
         "text/plain": ".txt",
     }
@@ -309,6 +312,8 @@ def _inspect_response(path: Path, declared_media_type: str) -> tuple[str, str | 
         ):
             return sniffed, "landing_page"
     if sniffed == "application/pdf" and not suffix.rstrip().endswith(b"%%EOF"):
+        return sniffed, "corrupt_source"
+    if sniffed == "image/jpeg" and not suffix.rstrip().endswith(b"\xff\xd9"):
         return sniffed, "corrupt_source"
     return sniffed, None
 
