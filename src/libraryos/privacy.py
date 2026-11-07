@@ -5,7 +5,6 @@ from __future__ import annotations
 import re
 from pathlib import Path
 from typing import Any
-from urllib.parse import urlsplit
 
 from .storage import StorageError
 
@@ -44,6 +43,15 @@ _ABSOLUTE_USER_PATH = re.compile(
 _SENSITIVE_QUERY_KEYS = re.compile(
     r"(?i)(?:token|key|signature|credential|authorization|x-amz-[^=]*)="
 )
+
+
+def _sensitive_url(value: str) -> bool:
+    # This is a text scan, not URL validation: help may contain HOST[:PORT],
+    # and malformed addresses can still disclose credentials or signed queries.
+    request = value.split("#", 1)[0]
+    hierarchy, _, query = request.partition("?")
+    authority = hierarchy.partition("://")[2].split("/", 1)[0]
+    return "@" in authority or bool(_SENSITIVE_QUERY_KEYS.search(query))
 
 
 def scan_privacy(
@@ -130,20 +138,15 @@ def scan_privacy(
                     "message": "An absolute user-home path may disclose local identity.",
                 }
             )
-        urls = [
-            urlsplit(match.group(0).rstrip(".,);"))
-            for match in _URL.finditer(text)
-        ]
         if any(
-            url.username is not None
-            or bool(_SENSITIVE_QUERY_KEYS.search(url.query))
-            for url in urls
+            _sensitive_url(match.group(0).rstrip(".,);"))
+            for match in _URL.finditer(text)
         ):
             findings.append(
                 {
                     "code": "sensitive_url_present",
                     "path": str(relative),
-                    "message": "A URL contains user information, a query, or a fragment.",
+                    "message": "A URL contains user information or a sensitive query parameter.",
                 }
             )
     findings.sort(key=lambda item: (item["path"], item["code"]))

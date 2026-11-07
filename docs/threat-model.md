@@ -69,4 +69,8 @@ libraryos call privacy.scan \
 ```
 
 Privacy findings identify the file and category but never echo matched secret
-values or publication content.
+values or publication content. URL scanning checks user information and sensitive
+query parameters without requiring a syntactically valid network address.
+Symbolic addresses in help text and malformed bracketed hosts do not stop the
+scan or hide later findings. This is a bounded text check, not URL validation or
+a guarantee that all possible secrets will be detected.
