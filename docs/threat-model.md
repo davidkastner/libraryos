@@ -35,6 +35,7 @@ policy outside this repository.
 | Silent overwrite or concurrent edit | Advisory locks, atomic replacement, expected hashes |
 | Wrong paper attached to a work | Identity-gated acquisition; ambiguous bytes are quarantined |
 | Secret-bearing URL persistence | Persisted URLs omit user info, query, and fragment |
+| Different query-selected asset accepted for a candidate | Exact request fingerprint checked before jobs or network; redacted URL equality is insufficient |
 | Agent overreach | Declared operation effects and least-authority capability grants |
 | Accidental evidence deletion | Preview, recoverable staging, retention period, exact-ID purge confirmation |
 | False scientific implication | Separate source, derivative, review, assessment, and occurrence records |

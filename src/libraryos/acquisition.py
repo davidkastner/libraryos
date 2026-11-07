@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
 import mimetypes
 import os
 import re
@@ -80,6 +82,19 @@ def sanitize_url(url: str) -> str:
     return urllib.parse.urlunsplit(
         (parsed.scheme.lower(), f"{hostname}{port}", parsed.path or "/", "", "")
     )
+
+
+def request_url_sha256(url: str) -> str:
+    """Bind a request, including its query, without persisting replayable secrets."""
+
+    canonical = sanitize_url(url)
+    parsed = urllib.parse.urlsplit(url)
+    # Fragments are not part of an HTTP request. Preserve the encoded query's
+    # order and repeated keys: a provider may assign them different meanings.
+    request = [canonical, parsed.username, parsed.password, parsed.query]
+    return hashlib.sha256(
+        json.dumps(request, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+    ).hexdigest()
 
 
 def _normalized_text(value: str) -> str:
@@ -383,6 +398,7 @@ def acquire_url(
     """Acquire an authorized source only when its work identity is defensible."""
 
     safe_url = sanitize_url(url)
+    request_identity = request_url_sha256(url)
     if access not in ACCESS_CLASSES or access not in set(allowed_access):
         raise StorageError(
             "Source access class was not explicitly authorized",
@@ -409,6 +425,18 @@ def acquire_url(
                 code="source_candidate_not_found",
                 path=candidate_id,
             )
+        if not candidate.get("request_url_sha256"):
+            raise StorageError(
+                "Source candidate has no exact request binding; register a verified candidate",
+                code="source_candidate_unbound",
+                path=candidate_id,
+            )
+        if candidate["request_url_sha256"] != request_identity:
+            raise StorageError(
+                "Acquisition request URL does not match the verified source candidate",
+                code="source_candidate_mismatch",
+                path=candidate_id,
+            )
         if candidate["url"] != safe_url:
             raise StorageError(
                 "Acquisition URL does not match the verified source candidate",
@@ -430,6 +458,8 @@ def acquire_url(
         arguments={
             "work_id": work_id,
             "canonical_url": safe_url,
+            "request_url_sha256": request_identity,
+            **({"source_candidate_id": candidate_id} if candidate_id is not None else {}),
             "role": role,
             "access": access,
             "max_bytes": max_bytes,

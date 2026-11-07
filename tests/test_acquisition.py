@@ -15,12 +15,15 @@ from libraryos import (
     register_source_candidate,
     validate_library,
 )
+from libraryos.operations import invoke
 
 
 class _SourceHandler(BaseHTTPRequestHandler):
     routes = {}
+    requests = []
 
     def do_GET(self):  # noqa: N802
+        self.requests.append(self.path)
         path = self.path.split("?", 1)[0]
         status, media_type, body = self.routes.get(
             path,
@@ -39,6 +42,7 @@ class _SourceHandler(BaseHTTPRequestHandler):
 @pytest.fixture
 def source_server():
     _SourceHandler.routes = {}
+    _SourceHandler.requests = []
     server = ThreadingHTTPServer(("127.0.0.1", 0), _SourceHandler)
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
@@ -449,3 +453,68 @@ def test_registered_candidate_provenance_reaches_source(tmp_path, source_server)
         result["source"]["identity_method"]
         == "registered_candidate:fixture-provider-identity"
     )
+
+
+def test_public_candidate_binds_query_without_persisting_transient_url(tmp_path, source_server):
+    base_url, routes = source_server
+    body = b"The selected source asset.\n"
+    routes['/asset.txt'] = (200, 'text/plain', body)
+    root = str(tmp_path / 'library')
+    invoke('library.initialize', dict(path=root))
+    work = invoke('work.create', dict(library=root, work_type='report', title='Query asset fixture'))['result']
+    first_url = f'{base_url}/asset.txt?id=first&token=private-fixture-value'
+    second_url = f'{base_url}/asset.txt?id=second&token=private-fixture-value'
+    arguments = dict(library=root, work_id=work['id'], provider='fixture', access='open_access',
+        identity_method='provider_exact_asset', verified_by='fixture', verified_at='2026-09-19T12:00:00Z')
+    first = invoke('source.candidate.register', dict(arguments, url=first_url))['result']
+    repeated = invoke('source.candidate.register', dict(arguments, url=first_url+'#page=2'))['result']
+    second = invoke('source.candidate.register', dict(arguments, url=second_url))['result']
+    assert first['candidate']['id'] == repeated['candidate']['id']
+    assert first['candidate']['id'] != second['candidate']['id']
+    assert first['candidate']['url'] == second['candidate']['url'] == f'{base_url}/asset.txt'
+    assert len(first['candidate']['request_url_sha256']) == 64
+    acquire = dict(library=root, work_id=work['id'], role='full_text', access='open_access',
+        allowed_access=['open_access'], identity_evidence=dict(candidate_id=first['candidate']['id']))
+    for wrong_url in [second_url, first_url.replace('private-fixture-value', 'changed-value'),
+            first_url+'&part=second', f'{base_url}/asset.txt?token=private-fixture-value&id=first',
+            first_url.replace('://', '://fixture:credential@')]:
+        with pytest.raises(StorageError) as caught:
+            invoke('source.acquire', dict(acquire, url=wrong_url))
+        assert caught.value.code == 'source_candidate_mismatch'
+    assert _SourceHandler.requests == []
+    assert list_jobs(root) == []
+    assert get_work(root, work['id'])['sources'] == []
+    result = invoke('source.acquire', dict(acquire, url=first_url))['result']
+    assert _SourceHandler.requests == ['/asset.txt?id=first&token=private-fixture-value']
+    assert result['source']['sha256'] == hashlib.sha256(body).hexdigest()
+    assert result['source']['canonical_url'] == f'{base_url}/asset.txt'
+    job = list_jobs(root)[0]
+    assert job['arguments']['source_candidate_id'] == first['candidate']['id']
+    assert job['arguments']['request_url_sha256'] == first['candidate']['request_url_sha256']
+    for path in (tmp_path / 'library').rglob('*.json'):
+        text = path.read_text()
+        assert 'private-fixture-value' not in text
+        assert 'id=first' not in text and 'id=second' not in text
+    assert validate_library(root)['valid']
+
+
+def test_candidate_without_request_binding_is_not_acquisition_authority(tmp_path, source_server):
+    base_url, routes = source_server
+    routes['/asset.txt'] = (200, 'text/plain', b'No unbound retrieval.\n')
+    root = tmp_path / 'library'
+    initialize_library(root)
+    work = create_work(root, work_type='report', title='Unbound candidate fixture')
+    evidence = _verified_candidate(root, work['id'], f'{base_url}/asset.txt')
+    manifest = get_work(root, work['id'])
+    manifest['source_candidates'][0].pop('request_url_sha256', None)
+    (root / 'works' / work['id'] / 'manifest.json').write_text(json.dumps(manifest))
+    with pytest.raises(StorageError) as caught:
+        acquire_url(root, work['id'], f'{base_url}/asset.txt', role='full_text', access='open_access',
+            allowed_access=['open_access'], identity_evidence=evidence)
+    assert caught.value.code == 'source_candidate_unbound'
+    assert _SourceHandler.requests == [] and list_jobs(root) == []
+    fresh = _verified_candidate(root, work['id'], f'{base_url}/asset.txt')
+    assert fresh['candidate_id'] != evidence['candidate_id']
+    result = acquire_url(root, work['id'], f'{base_url}/asset.txt', role='full_text', access='open_access',
+        allowed_access=['open_access'], identity_evidence=fresh)
+    assert result['source']['identity_status'] == 'verified'

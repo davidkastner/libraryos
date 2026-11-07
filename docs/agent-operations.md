@@ -37,7 +37,12 @@ with the identifiers already known at that stage:
 2. `metadata.assertion.accept` points to `source.crossref.discover`.
 3. `source.crossref.discover` returns one `source.acquire` action per registered
    candidate. The agent must still choose the source role and explicitly
-   authorize its access class.
+   authorize its access class. A redacted query-bearing URL also requires the
+   original authorized request URL in `required_arguments`; do not use the
+   stored origin/path as a substitute. Keep the original URL transient or obtain
+   it again from the provider. Candidate request fingerprints bind the encoded
+   query without persisting its values. An unbound candidate must be registered
+   from provider verification before acquisition.
 4. `source.acquire` points to `source.prepare` using the acquired source ID.
 5. `source.prepare` points to work-scoped `search.prepared` and `read.resolve`.
 

@@ -246,24 +246,31 @@ def discover_sources(
                 version=candidate.version,
             )
         )
-    next_actions = [
-        {
-            "operation": "source.acquire",
-            "purpose": "Acquire this candidate after choosing its source role and authorizing its access class.",
-            "arguments": {
-                "library": str(Path(library).expanduser().resolve()),
-                "work_id": work_id,
-                "url": item["candidate"]["url"],
-                "access": item["candidate"]["access"],
-                "allowed_access": [item["candidate"]["access"]],
-                "identity_evidence": {
-                    "candidate_id": item["candidate"]["id"],
-                },
-            },
-            "required_arguments": ["role"],
+    from .acquisition import request_url_sha256
+
+    next_actions = []
+    for item in results:
+        candidate = item["candidate"]
+        arguments = {
+            "library": str(Path(library).expanduser().resolve()),
+            "work_id": work_id,
+            "access": candidate["access"],
+            "allowed_access": [candidate["access"]],
+            "identity_evidence": {"candidate_id": candidate["id"]},
         }
-        for item in results
-    ]
+        required = ["role"]
+        purpose = "Acquire this candidate after choosing its source role and authorizing its access class."
+        if request_url_sha256(candidate["url"]) == candidate["request_url_sha256"]:
+            arguments["url"] = candidate["url"]
+        else:
+            required.append("url")
+            purpose += " Supply the original authorized request URL; stored URL provenance is redacted."
+        next_actions.append({
+            "operation": "source.acquire",
+            "purpose": purpose,
+            "arguments": arguments,
+            "required_arguments": required,
+        })
     return {
         "work_id": work_id,
         "provider": {"name": provider.name, "version": provider.version},
